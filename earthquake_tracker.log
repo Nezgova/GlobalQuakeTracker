@@ -29,3 +29,7 @@
 2025-03-26 11:02:28,113 - INFO: Successfully fetched data from USGS_PAST_DAY
 2025-03-26 11:02:28,207 - INFO: Interactive map saved to .\earthquake_map.html
 2025-03-26 11:02:28,208 - INFO: Background update complete, waiting 5 minutes for next update.
+2025-03-26 11:07:28,209 - INFO: Fetching earthquake data for background update...
+2025-03-26 11:07:28,362 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 11:07:28,432 - INFO: Interactive map saved to .\earthquake_map.html
+2025-03-26 11:07:28,433 - INFO: Background update complete, waiting 5 minutes for next update.
