@@ -1,0 +1,31 @@
+2025-03-26 10:37:33,711 - ERROR: Application error: could not convert string to float: '31.656639° N'
+2025-03-26 10:38:41,126 - ERROR: Application error: "Unknown task conversational, available tasks are ['audio-classification', 'automatic-speech-recognition', 'depth-estimation', 'document-question-answering', 'feature-extraction', 'fill-mask', 'image-classification', 'image-feature-extraction', 'image-segmentation', 'image-text-to-text', 'image-to-image', 'image-to-text', 'mask-generation', 'ner', 'object-detection', 'question-answering', 'sentiment-analysis', 'summarization', 'table-question-answering', 'text-classification', 'text-generation', 'text-to-audio', 'text-to-speech', 'text2text-generation', 'token-classification', 'translation', 'video-classification', 'visual-question-answering', 'vqa', 'zero-shot-audio-classification', 'zero-shot-classification', 'zero-shot-image-classification', 'zero-shot-object-detection', 'translation_XX_to_YY']"
+2025-03-26 10:46:45,342 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:46:45,483 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:46:45,636 - ERROR: Application error: 
+    Invalid element(s) received for the 'size' property of scattergeo.marker
+        Invalid elements include: [-0.2, -0.66, -0.71, -0.41, -0.88, -0.26, -0.18, -0.15, -0.78, -0.35]
+
+    The 'size' property is a number and may be specified as:
+      - An int or float in the interval [0, inf]
+      - A tuple, list, or one-dimensional numpy array of the above
+2025-03-26 10:50:48,827 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:50:48,943 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:50:49,051 - ERROR: Application error: 
+    Invalid element(s) received for the 'size' property of scattergeo.marker
+        Invalid elements include: [-0.2, -0.66, -0.71, -0.41, -0.88, -0.26, -0.18, -0.15, -0.78, -0.35]
+
+    The 'size' property is a number and may be specified as:
+      - An int or float in the interval [0, inf]
+      - A tuple, list, or one-dimensional numpy array of the above
+2025-03-26 10:57:26,650 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:57:26,779 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:57:27,771 - INFO: Interactive map saved to .\earthquake_map.html
+2025-03-26 10:57:27,829 - INFO: Fetching earthquake data for background update...
+2025-03-26 10:57:27,918 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 10:57:27,989 - INFO: Interactive map saved to .\earthquake_map.html
+2025-03-26 10:57:27,989 - INFO: Background update complete, waiting 5 minutes for next update.
+2025-03-26 11:02:27,990 - INFO: Fetching earthquake data for background update...
+2025-03-26 11:02:28,113 - INFO: Successfully fetched data from USGS_PAST_DAY
+2025-03-26 11:02:28,207 - INFO: Interactive map saved to .\earthquake_map.html
+2025-03-26 11:02:28,208 - INFO: Background update complete, waiting 5 minutes for next update.

@@ -1,361 +1,262 @@
+import os
 import requests
 import folium
-import pandas as pd
-from datetime import datetime
-import os
-from geopy.distance import geodesic
 import schedule
-import time
+import logging
 import threading
+import time
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+
+# Advanced geospatial and data processing libraries
+import numpy as np
+import pandas as pd
+from geopy.distance import geodesic
+from rich.console import Console
+from rich.table import Table
+from transformers import pipeline
+import plotly.express as px
+import plotly.graph_objs as go
+
+# Enhanced logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s: %(message)s',
+    handlers=[
+        logging.FileHandler('earthquake_tracker.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+console = Console()
 
 
-# Function to fetch earthquake data from USGS API
-def fetch_earthquake_data(time_period='hour'):
+class AdvancedEarthquakeTracker:
     """
-    Fetch earthquake data from USGS API
-
-    Parameters:
-    time_period (str): Time period for which to fetch data ('hour', 'day', 'week', 'month')
-
-    Returns:
-    dict: JSON response from USGS API
+    Comprehensive earthquake tracking and analysis application
+    with advanced features and robust error handling.
     """
-    base_url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary"
-    url = f"{base_url}/all_{time_period}.geojson"
 
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for 4XX/5XX responses
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching earthquake data: {e}")
+    # Enhanced API configuration with multiple sources
+    EARTHQUAKE_APIS = {
+        "USGS_PAST_DAY": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",
+        "USGS_SIGNIFICANT": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_day.geojson"
+    }
+
+    def __init__(self, user_lat: float = 0, user_lon: float = 0, radius_km: int = 100):
+        """
+        Initialize the earthquake tracker with user location and parameters.
+
+        :param user_lat: User's latitude
+        :param user_lon: User's longitude
+        :param radius_km: Radius to check for nearby earthquakes
+        """
+        self.user_location = (user_lat, user_lon)
+        self.radius_km = radius_km
+        self.earthquake_data = None
+
+        # Initialize chatbot with more advanced model
+        self.chatbot = pipeline("conversational", model="microsoft/DialoGPT-large")
+
+    def fetch_earthquake_data(self, api_key: str = None) -> Optional[Dict]:
+        """
+        Fetch earthquake data with advanced error handling and optional API key support.
+
+        :param api_key: Optional API key for authenticated requests
+        :return: Parsed JSON earthquake data or None
+        """
+        headers = {"User-Agent": "EarthquakeTracker/1.0"} if api_key else {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        for name, url in self.EARTHQUAKE_APIS.items():
+            try:
+                response = requests.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
+
+                data = response.json()
+                if data and "features" in data:
+                    logger.info(f"Successfully fetched data from {name}")
+                    return data
+
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Error fetching data from {name}: {e}")
+
+        logger.error("Failed to fetch earthquake data from all sources")
         return None
 
-
-# Function to determine the marker color based on earthquake magnitude
-def get_marker_color(magnitude):
-    """
-    Determine marker color based on earthquake magnitude
-
-    Parameters:
-    magnitude (float): Earthquake magnitude
-
-    Returns:
-    str: Color code
-    """
-    if magnitude < 4.0:
-        return 'green'  # Weak
-    elif magnitude < 6.0:
-        return 'orange'  # Moderate
-    else:
-        return 'red'  # Strong
-
-
-# Create a folium map with earthquake data
-def create_earthquake_map(data, user_location=None):
-    """
-    Create a folium map with earthquake data
-
-    Parameters:
-    data (dict): Earthquake data from USGS API
-    user_location (tuple): User's location as (latitude, longitude)
-
-    Returns:
-    folium.Map: Map with earthquake markers
-    """
-    # Start with user location if provided, otherwise global view
-    initial_location = user_location if user_location else [0, 0]
-    zoom_start = 6 if user_location else 2
-
-    earthquake_map = folium.Map(location=initial_location, zoom_start=zoom_start)
-
-    # Add user marker if location is provided
-    if user_location:
-        folium.Marker(
-            location=user_location,
-            popup="Your Location",
-            icon=folium.Icon(color="blue", icon="user", prefix="fa")
-        ).add_to(earthquake_map)
-
-        # Add 100km radius circle around user location
-        folium.Circle(
-            location=user_location,
-            radius=100000,  # 100km in meters
-            color="blue",
-            fill=True,
-            fill_opacity=0.1,
-            popup="100km Radius"
-        ).add_to(earthquake_map)
-
-    # Deduplicate earthquakes by ID
-    processed_ids = set()
-
-    for feature in data['features']:
-        eq_id = feature['id']
-
-        # Skip if already processed
-        if eq_id in processed_ids:
-            continue
-
-        processed_ids.add(eq_id)
-
-        properties = feature['properties']
-        coordinates = feature['geometry']['coordinates']
-
-        # Skip entries with null magnitude
-        if properties['mag'] is None:
-            continue
-
-        longitude = coordinates[0]
-        latitude = coordinates[1]
-        depth = coordinates[2]
-        magnitude = properties['mag']
-        place = properties['place'] or "Unknown location"
-        time_str = datetime.fromtimestamp(properties['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
-
-        # Calculate distance from user if location provided
-        distance_info = ""
-        if user_location:
-            distance = geodesic(user_location, (latitude, longitude)).kilometers
-            distance_info = f"<b>Distance from you:</b> {distance:.1f} km<br>"
-
-        popup_text = f"""
-        <b>Location:</b> {place}<br>
-        <b>Magnitude:</b> {magnitude}<br>
-        <b>Depth:</b> {depth} km<br>
-        <b>Time:</b> {time_str}<br>
-        {distance_info}
+    def analyze_earthquake_data(self) -> pd.DataFrame:
         """
+        Transform raw earthquake data into a structured pandas DataFrame for analysis.
 
-        folium.CircleMarker(
-            location=[latitude, longitude],
-            radius=magnitude * 2,
-            color=get_marker_color(magnitude),
-            fill=True,
-            fill_opacity=0.7,
-            popup=folium.Popup(popup_text, max_width=300)
-        ).add_to(earthquake_map)
+        :return: DataFrame with earthquake information
+        """
+        if not self.earthquake_data:
+            self.earthquake_data = self.fetch_earthquake_data()
 
-    # Add legend
-    legend_html = '''
-    <div style="position: fixed; 
-                bottom: 50px; right: 50px; width: 150px; height: 120px; 
-                border:2px solid grey; z-index:9999; background-color:white;
-                padding: 10px;
-                font-size: 14px;
-                ">
-      <p style="margin-bottom: 5px"><b>Magnitude</b></p>
-      <p><i class="fa fa-circle" style="color:green"></i> &lt; 4.0 (Weak)</p>
-      <p><i class="fa fa-circle" style="color:orange"></i> 4.0-5.9 (Moderate)</p>
-      <p><i class="fa fa-circle" style="color:red"></i> &gt;= 6.0 (Strong)</p>
-    </div>
-    '''
-    earthquake_map.get_root().html.add_child(folium.Element(legend_html))
+        if not self.earthquake_data:
+            return pd.DataFrame()
 
-    return earthquake_map
+        earthquakes = []
+        for feature in self.earthquake_data.get("features", []):
+            coords = feature["geometry"]["coordinates"]
+            properties = feature["properties"]
 
-
-# Save the earthquake map to an HTML file
-def save_map(earthquake_map, output_dir='output', filename='earthquake_map.html'):
-    """
-    Save the earthquake map to an HTML file
-
-    Parameters:
-    earthquake_map (folium.Map): Map to save
-    output_dir (str): Directory to save the map
-    filename (str): Filename for the saved map
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, filename)
-    earthquake_map.save(output_path)
-    print(f"Map saved to {output_path}")
-    return output_path
-
-
-# Function to find nearby earthquakes based on user's location
-def find_nearby_earthquakes(user_lat, user_lon, earthquake_data, radius_km=100):
-    """
-    Find earthquakes near the user's location
-
-    Parameters:
-    user_lat (float): User's latitude
-    user_lon (float): User's longitude
-    earthquake_data (dict): Earthquake data from USGS API
-    radius_km (float): Search radius in kilometers
-
-    Returns:
-    list: List of nearby earthquakes with details
-    """
-    nearby_earthquakes = []
-    user_location = (user_lat, user_lon)
-
-    # Deduplicate earthquakes
-    processed_ids = set()
-
-    for feature in earthquake_data['features']:
-        eq_id = feature['id']
-
-        # Skip if already processed
-        if eq_id in processed_ids:
-            continue
-
-        processed_ids.add(eq_id)
-
-        coordinates = feature['geometry']['coordinates']
-        properties = feature['properties']
-
-        # Skip entries with null magnitude
-        if properties['mag'] is None:
-            continue
-
-        magnitude = properties['mag']
-        place = properties['place'] or "Unknown location"
-        time_str = datetime.fromtimestamp(properties['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
-        lat, lon = coordinates[1], coordinates[0]
-
-        eq_location = (lat, lon)
-        distance = geodesic(user_location, eq_location).kilometers
-
-        # Check if earthquake is within specified radius
-        if distance <= radius_km:
-            nearby_earthquakes.append({
-                "id": eq_id,
-                "place": place,
-                "magnitude": magnitude,
-                "distance": distance,
-                "time": time_str,
-                "depth": coordinates[2]
+            earthquakes.append({
+                "latitude": coords[1],
+                "longitude": coords[0],
+                "magnitude": properties.get("mag", 0),
+                "place": properties.get("place", "Unknown"),
+                "time": datetime.fromtimestamp(properties.get("time", 0) / 1000),
+                "depth": coords[2] if len(coords) > 2 else 0
             })
 
-    # Sort by distance
-    nearby_earthquakes.sort(key=lambda x: x["distance"])
+        return pd.DataFrame(earthquakes)
 
-    return nearby_earthquakes
+    def create_interactive_map(self, output_dir: str = '.') -> str:
+        """
+        Generate an advanced interactive map with Plotly.
 
+        :param output_dir: Directory to save the map
+        :return: Path to the generated map
+        """
+        df = self.analyze_earthquake_data()
 
-# Function to update the map with new data
-def update_map(time_period='hour', user_location=None):
-    """
-    Update the map with new earthquake data
+        fig = px.scatter_geo(
+            df,
+            lat='latitude',
+            lon='longitude',
+            color='magnitude',
+            size='magnitude',
+            hover_name='place',
+            color_continuous_scale='Viridis',
+            projection='natural earth'
+        )
 
-    Parameters:
-    time_period (str): Time period for which to fetch data
-    user_location (tuple): User's location as (latitude, longitude)
+        output_path = os.path.join(output_dir, 'earthquake_map.html')
+        fig.write_html(output_path)
 
-    Returns:
-    str: Path to the saved map file
-    """
-    print(f"Fetching new earthquake data for the past {time_period}...")
-    earthquake_data = fetch_earthquake_data(time_period)
+        logger.info(f"Interactive map saved to {output_path}")
+        return output_path
 
-    if earthquake_data and earthquake_data.get('features'):
-        print(f"Found {len(earthquake_data['features'])} earthquakes.")
-        earthquake_map = create_earthquake_map(earthquake_data, user_location)
-        return save_map(earthquake_map)
-    else:
-        print("No earthquake data found or error fetching data.")
-        return None
+    def find_nearby_earthquakes(self) -> List[Dict]:
+        """
+        Enhanced nearby earthquake detection with more details.
 
+        :return: List of nearby earthquake details
+        """
+        df = self.analyze_earthquake_data()
 
-# Function to run scheduled updates in a separate thread
-def run_scheduler(time_period='hour', update_interval=10, user_location=None):
-    """
-    Run scheduled map updates in a separate thread
+        nearby_quakes = []
+        for _, row in df.iterrows():
+            distance = geodesic(self.user_location, (row['latitude'], row['longitude'])).kilometers
 
-    Parameters:
-    time_period (str): Time period for which to fetch data
-    update_interval (int): Update interval in minutes
-    user_location (tuple): User's location as (latitude, longitude)
-    """
+            if distance <= self.radius_km:
+                nearby_quakes.append({
+                    "place": row['place'],
+                    "magnitude": row['magnitude'],
+                    "distance": distance,
+                    "depth": row['depth'],
+                    "time": row['time']
+                })
 
-    def update_job():
-        update_map(time_period, user_location)
+        return sorted(nearby_quakes, key=lambda x: x['distance'])
 
-    schedule.every(update_interval).minutes.do(update_job)
+    def display_nearby_earthquakes(self):
+        """
+        Rich-formatted display of nearby earthquakes.
+        """
+        nearby_quakes = self.find_nearby_earthquakes()
 
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+        if not nearby_quakes:
+            console.print("[green]No recent earthquakes near your location.[/green]")
+            return
+
+        table = Table(title="Nearby Earthquakes")
+        table.add_column("Place", style="cyan")
+        table.add_column("Magnitude", style="magenta")
+        table.add_column("Distance (km)", style="green")
+        table.add_column("Depth (km)", style="yellow")
+        table.add_column("Time", style="blue")
+
+        for quake in nearby_quakes:
+            table.add_row(
+                str(quake['place']),
+                f"{quake['magnitude']:.1f}",
+                f"{quake['distance']:.2f}",
+                f"{quake['depth']:.1f}",
+                quake['time'].strftime("%Y-%m-%d %H:%M")
+            )
+
+        console.print(table)
+
+    def start_background_updates(self, interval_minutes: int = 5):
+        """
+        Start scheduled background updates for earthquake data.
+
+        :param interval_minutes: Update interval in minutes
+        """
+
+        def update_task():
+            while True:
+                try:
+                    self.fetch_earthquake_data()
+                    self.create_interactive_map()
+                    time.sleep(interval_minutes * 60)
+                except Exception as e:
+                    logger.error(f"Background update error: {e}")
+                    time.sleep(interval_minutes * 60)
+
+        update_thread = threading.Thread(target=update_task, daemon=True)
+        update_thread.start()
+
+    def interactive_chat(self):
+        """
+        Enhanced interactive chatbot with earthquake-related context.
+        """
+        console.print("[bold green]🌍 Earthquake Chatbot Activated![/bold green]")
+        console.print("[dim]Type 'exit' to quit, 'quakes' for nearby earthquakes[/dim]")
+
+        while True:
+            user_input = input("You: ")
+
+            if user_input.lower() in ['exit', 'quit']:
+                break
+            elif user_input.lower() == 'quakes':
+                self.display_nearby_earthquakes()
+                continue
+
+            try:
+                response = self.chatbot(user_input)
+                console.print(f"[bold blue]Bot:[/bold blue] {response[0]['generated_text']}")
+            except Exception as e:
+                logger.error(f"Chatbot error: {e}")
+                console.print("[red]Sorry, I couldn't process that message.[/red]")
 
 
 def main():
-    """
-    Main function to run the earthquake monitoring system
-    """
-    print("=== Earthquake Monitoring System ===")
+    console.print("[bold green]🌍 Advanced Earthquake Tracker[/bold green]")
 
-    # Ask for user location
-    use_location = input("Do you want to provide your location? (y/n): ").lower() == 'y'
-    user_location = None
-
-    if use_location:
-        try:
-            user_lat = float(input("Enter your latitude: "))
-            user_lon = float(input("Enter your longitude: "))
-            user_location = (user_lat, user_lon)
-
-            # Initial fetch of data
-            print("Fetching earthquake data...")
-            earthquake_data = fetch_earthquake_data('day')
-
-            if earthquake_data:
-                # Find nearby earthquakes
-                nearby_earthquakes = find_nearby_earthquakes(user_lat, user_lon, earthquake_data)
-
-                if nearby_earthquakes:
-                    print(f"\nFound {len(nearby_earthquakes)} earthquakes within 100km of your location:")
-                    for i, eq in enumerate(nearby_earthquakes, 1):
-                        print(
-                            f"{i}. {eq['place']} - Magnitude: {eq['magnitude']:.1f}, Distance: {eq['distance']:.1f} km, Time: {eq['time']}")
-                else:
-                    print("No earthquakes found within 100km of your location.")
-        except ValueError:
-            print("Invalid coordinates. Using global view.")
-            user_location = None
-
-    # Time period selection
-    print("\nSelect time period for earthquake data:")
-    print("1. Past hour")
-    print("2. Past day")
-    print("3. Past week")
-    print("4. Past month")
-
-    choice = input("Enter your choice (1-4): ")
-    time_periods = {"1": "hour", "2": "day", "3": "week", "4": "month"}
-    time_period = time_periods.get(choice, "day")
-
-    # Update interval
-    update_interval = 60
     try:
-        update_interval = int(input("\nEnter update interval in minutes (default: 60): ") or "60")
-        update_interval = max(10, min(1440, update_interval))  # Between 10 minutes and 24 hours
-    except ValueError:
-        print("Invalid input. Using default interval of 60 minutes.")
+        user_lat = float(input("Enter your latitude: "))
+        user_lon = float(input("Enter your longitude: "))
 
-    # Generate initial map
-    map_path = update_map(time_period, user_location)
-    if map_path:
-        print(f"\nInitial map created. Open {map_path} in your web browser to view.")
+        tracker = AdvancedEarthquakeTracker(user_lat, user_lon)
 
-        # Start scheduled updates in a separate thread
-        print(f"\nStarting scheduled updates every {update_interval} minutes.")
-        print("Press Ctrl+C to stop the program.")
+        # Initial data fetch and map creation
+        tracker.fetch_earthquake_data()
+        tracker.create_interactive_map()
+        tracker.display_nearby_earthquakes()
 
-        scheduler_thread = threading.Thread(
-            target=run_scheduler,
-            args=(time_period, update_interval, user_location)
-        )
-        scheduler_thread.daemon = True
-        scheduler_thread.start()
+        # Start background updates
+        tracker.start_background_updates()
 
-        try:
-            # Keep main thread alive to handle KeyboardInterrupt
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\nProgram stopped by user.")
-    else:
-        print("Failed to create initial map. Please check your internet connection and try again.")
+        # Start interactive chat
+        tracker.interactive_chat()
+
+    except Exception as e:
+        logger.error(f"Application error: {e}")
+        console.print(f"[red]An error occurred: {e}[/red]")
 
 
 if __name__ == "__main__":

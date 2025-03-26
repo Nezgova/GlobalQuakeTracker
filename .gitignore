@@ -1,0 +1,22 @@
+# Ignore Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore virtual environments (replace 'env' or 'venv' with your environment name if different)
+env/
+venv/
+.venv/
+
+# Ignore Python package manager files
+Pipfile
+Pipfile.lock
+requirements.txt
+
+# Ignore other potential IDE files
+.vscode/
+.idea/
+
+# Ignore OS generated files (macOS, Windows)
+.DS_Store
+Thumbs.db
