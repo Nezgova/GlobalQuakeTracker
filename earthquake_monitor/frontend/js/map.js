@@ -4,13 +4,10 @@
 class EarthquakeMap {
     constructor() {
         this.map = null;
-        this.markers = L.layerGroup();
+        this.markers = L.featureGroup();  // Changed to featureGroup
         this.initMap();
     }
 
-    /**
-     * Initialize Leaflet map
-     */
     initMap() {
         // Create map with world view
         this.map = L.map('earthquake-map').setView([20, 0], 2);
@@ -25,36 +22,21 @@ class EarthquakeMap {
         this.markers.addTo(this.map);
     }
 
-    /**
-     * Get color based on earthquake magnitude
-     * @param {number} magnitude - Earthquake magnitude
-     * @returns {string} - Color in hex format
-     */
     getMagnitudeColor(magnitude) {
-        if (magnitude < 1) return '#A3F600'; // Green
-        if (magnitude < 2) return '#DCF400'; // Green-Yellow
-        if (magnitude < 3) return '#F7DB11'; // Yellow
-        if (magnitude < 4) return '#FDB72A'; // Orange-Yellow
-        if (magnitude < 5) return '#FCA35D'; // Orange
-        if (magnitude < 6) return '#FF7F41'; // Orange-Red
-        if (magnitude < 7) return '#FF5000'; // Red-Orange
-        return '#FF0000';                    // Red
+        if (magnitude < 1) return '#A3F600';
+        if (magnitude < 2) return '#DCF400';
+        if (magnitude < 3) return '#F7DB11';
+        if (magnitude < 4) return '#FDB72A';
+        if (magnitude < 5) return '#FCA35D';
+        if (magnitude < 6) return '#FF7F41';
+        if (magnitude < 7) return '#FF5000';
+        return '#FF0000';
     }
 
-    /**
-     * Calculate marker size based on magnitude
-     * @param {number} magnitude - Earthquake magnitude
-     * @returns {number} - Size in pixels
-     */
     getMarkerSize(magnitude) {
         return Math.max(5, Math.pow(magnitude, 2) * 0.8);
     }
 
-    /**
-     * Create a popup with earthquake details
-     * @param {Object} earthquake - Earthquake data
-     * @returns {string} - HTML content for popup
-     */
     createPopupContent(earthquake) {
         const date = new Date(earthquake.properties.time).toLocaleString();
         return `
@@ -68,22 +50,15 @@ class EarthquakeMap {
         `;
     }
 
-    /**
-     * Update the map with earthquake data
-     * @param {Array} earthquakes - Array of earthquake features
-     */
     updateMap(earthquakes) {
-        // Clear existing markers
-        this.markers.clearLayers();
+        this.markers.clearLayers(); // Clear existing markers
 
-        // Add new markers
         earthquakes.forEach(earthquake => {
             const magnitude = earthquake.properties.mag;
             const coordinates = earthquake.geometry.coordinates;
             
-            // Create circle marker
             const marker = L.circleMarker(
-                [coordinates[1], coordinates[0]], // Leaflet uses [lat, lng] while GeoJSON uses [lng, lat, depth]
+                [coordinates[1], coordinates[0]], 
                 {
                     radius: this.getMarkerSize(magnitude),
                     fillColor: this.getMagnitudeColor(magnitude),
@@ -94,18 +69,15 @@ class EarthquakeMap {
                 }
             );
 
-            // Add popup
             marker.bindPopup(this.createPopupContent(earthquake));
-            
-            // Add to marker layer
-            this.markers.addLayer(marker);
+            this.markers.addLayer(marker); // Add marker to the group
         });
 
-        // If there are earthquakes, zoom to fit them
+        // Zoom to fit the bounds of all markers
         if (earthquakes.length > 0) {
             const bounds = this.markers.getBounds();
             if (bounds.isValid()) {
-                this.map.fitBounds(bounds);
+                this.map.fitBounds(bounds);  // Adjust map view
             }
         }
     }

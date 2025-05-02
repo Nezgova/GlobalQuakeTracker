@@ -15,6 +15,11 @@ class EarthquakeApp {
             timePeriod: 'day'
         };
         
+        // API base URL - change this to work in any environment
+        this.apiBaseUrl = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' 
+            ? `http://${window.location.hostname}:5000` 
+            : '/api'; // Fall back to relative path if deployed together
+        
         // Bind DOM elements
         this.bindElements();
         this.bindEventListeners();
@@ -72,29 +77,30 @@ class EarthquakeApp {
         try {
             this.setLoading(true);
             
-            // Prepare API URL based on time period
-            let period;
+            // Convert time period to days for backend API
+            let days;
             switch (this.filterSettings.timePeriod) {
-                case 'hour': period = 'hour'; break;
-                case 'day': period = 'day'; break;
-                case 'week': period = 'week'; break;
-                case 'month': period = 'month'; break;
-                default: period = 'day';
+                case 'hour': days = 0.042; break; // ~1 hour in days
+                case 'day': days = 1; break;
+                case 'week': days = 7; break;
+                case 'month': days = 30; break;
+                default: days = 1;
             }
             
             // Try to fetch from our backend first
             try {
-                const response = await fetch(`http://127.0.0.1:5000/api/earthquakes?period=${period}`);
+                const response = await fetch(`${this.apiBaseUrl}/api/earthquakes?days=${days}&magnitude=${this.filterSettings.minMagnitude}`);
                 if (response.ok) {
                     const data = await response.json();
                     this.processEarthquakeData(data);
                     return;
                 }
             } catch (error) {
-                console.log('Backend not available, falling back to direct USGS API');
+                console.log('Backend not available, falling back to direct USGS API', error);
             }
             
             // Fall back to direct USGS API if backend is not available
+            const period = this.filterSettings.timePeriod;
             const apiUrl = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_${period}.geojson`;
             const response = await fetch(apiUrl);
             
@@ -234,80 +240,90 @@ class EarthquakeApp {
     /**
      * Generate and download PDF report
      */
-async generateReport() {
-    try {
-        // Check if we have earthquake data
-        if (this.filteredEarthquakes.length === 0) {
-            alert('No earthquake data available for report. Please adjust filters or refresh data.');
-            return;
-        }
-        
-        // Show loading state
-        this.reportButton.disabled = true;
-        this.reportButton.textContent = 'Generating...';
-        
-        // Get the strongest earthquake's coordinates for the report center
-        // If no earthquakes match, use a default location
-        let latitude, longitude;
-        if (this.filteredEarthquakes.length > 0) {
-            const strongest = this.filteredEarthquakes.reduce((max, eq) => {
-                return eq.properties.mag > max.properties.mag ? eq : max;
-            }, this.filteredEarthquakes[0]);
+    async generateReport() {
+        try {
+            // Check if we have earthquake data
+            if (this.filteredEarthquakes.length === 0) {
+                alert('No earthquake data available for report. Please adjust filters or refresh data.');
+                return;
+            }
             
-            // Get coordinates from the strongest earthquake
-            longitude = strongest.geometry.coordinates[0];
-            latitude = strongest.geometry.coordinates[1];
-        } else {
-            // Default coordinates (San Francisco as an example)
-            latitude = 37.7749;
-            longitude = -122.4194;
+            // Show loading state
+            this.reportButton.disabled = true;
+            this.reportButton.textContent = 'Generating...';
+            
+            // Get the strongest earthquake's coordinates for the report center
+            // If no earthquakes match, use a default location
+            let latitude, longitude;
+            if (this.filteredEarthquakes.length > 0) {
+                const strongest = this.filteredEarthquakes.reduce((max, eq) => {
+                    return eq.properties.mag > max.properties.mag ? eq : max;
+                }, this.filteredEarthquakes[0]);
+                
+                // Get coordinates from the strongest earthquake
+                longitude = strongest.geometry.coordinates[0];
+                latitude = strongest.geometry.coordinates[1];
+            } else {
+                // Default coordinates (San Francisco as an example)
+                latitude = 37.7749;
+                longitude = -122.4194;
+            }
+            
+            // Convert time period to days for API consistency
+            let days;
+            switch (this.filterSettings.timePeriod) {
+                case 'hour': days = 0.042; break; // ~1 hour in days
+                case 'day': days = 1; break;
+                case 'week': days = 7; break;
+                case 'month': days = 30; break;
+                default: days = 1;
+            }
+            
+            // Call backend to generate report with required parameters
+            const response = await fetch(`${this.apiBaseUrl}/api/report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    latitude: latitude,
+                    longitude: longitude,
+                    radius: 300, // Default 300km radius
+                    days: days,
+                    minMagnitude: this.filterSettings.minMagnitude,
+                    earthquakeCount: this.filteredEarthquakes.length,
+                    title: `Earthquake Report (${new Date().toLocaleDateString()})`
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            
+            // Get the PDF blob
+            const blob = await response.blob();
+            
+            // Create a URL for the blob
+            const url = window.URL.createObjectURL(blob);
+            
+            // Create a link to download the PDF
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `earthquake_report_${new Date().toISOString().split('T')[0]}.pdf`;
+            a.click();
+            
+            // Clean up
+            window.URL.revokeObjectURL(url);
+            
+        } catch (error) {
+            console.error('Error generating report:', error);
+            alert('Failed to generate report. Please try again later.');
+        } finally {
+            // Reset button state
+            this.reportButton.disabled = false;
+            this.reportButton.textContent = 'Generate PDF Report';
         }
-        
-        // Call backend to generate report with required parameters
-        const response = await fetch('http://127.0.0.1:5000/api/report', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                latitude: latitude,
-                longitude: longitude,
-                radius: 300, // Default 300km radius
-                timePeriod: this.filterSettings.timePeriod,
-                minMagnitude: this.filterSettings.minMagnitude,
-                earthquakeCount: this.filteredEarthquakes.length,
-                title: `Earthquake Report (${new Date().toLocaleDateString()})`
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
-        // Get the PDF blob
-        const blob = await response.blob();
-        
-        // Create a URL for the blob
-        const url = window.URL.createObjectURL(blob);
-        
-        // Create a link to download the PDF
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `earthquake_report_${new Date().toISOString().split('T')[0]}.pdf`;
-        a.click();
-        
-        // Clean up
-        window.URL.revokeObjectURL(url);
-        
-    } catch (error) {
-        console.error('Error generating report:', error);
-        alert('Failed to generate report. Please try again later.');
-    } finally {
-        // Reset button state
-        this.reportButton.disabled = false;
-        this.reportButton.textContent = 'Generate PDF Report';
     }
-}
 
     /**
      * Set loading state for the application
@@ -316,8 +332,8 @@ async generateReport() {
     setLoading(isLoading) {
         if (isLoading) {
             this.refreshButton.disabled = true;
-            this.refreshButton.textContent = 'Loading...';}
-         else {
+            this.refreshButton.textContent = 'Loading...';
+        } else {
             this.refreshButton.disabled = false;
             this.refreshButton.textContent = 'Refresh Data';
         }
@@ -328,5 +344,3 @@ async generateReport() {
 document.addEventListener('DOMContentLoaded', () => {
     const app = new EarthquakeApp();
 });
-
-    
