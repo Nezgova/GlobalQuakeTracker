@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earthquake Monitor</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Earthquake Monitor</h1>
+        <p>Real-time earthquake data visualization</p>
+    </header>
+    
+    <main>
+        <section class="dashboard">
+            <div class="metrics">
+                <div class="metric-card">
+                    <h3>Total Earthquakes Today</h3>
+                    <p id="earthquake-count">Loading...</p>
+                </div>
+                <div class="metric-card">
+                    <h3>Average Magnitude</h3>
+                    <p id="avg-magnitude">Loading...</p>
+                </div>
+                <div class="metric-card">
+                    <h3>Strongest Today</h3>
+                    <p id="strongest-magnitude">Loading...</p>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="magnitude-chart"></canvas>
+            </div>
+        </section>
+        
+        <section class="map-section">
+            <div id="earthquake-map"></div>
+        </section>
+        
+        <section class="controls">
+            <div class="filter-controls">
+                <label for="min-magnitude">Minimum Magnitude:</label>
+                <input type="range" id="min-magnitude" min="0" max="8" step="0.1" value="1">
+                <span id="min-magnitude-value">1.0</span>
+                
+                <label for="time-period">Time Period:</label>
+                <select id="time-period">
+                    <option value="hour">Past Hour</option>
+                    <option value="day" selected>Past Day</option>
+                    <option value="week">Past Week</option>
+                    <option value="month">Past Month</option>
+                </select>
+            </div>
+            
+            <button id="refresh-data" class="btn">Refresh Data</button>
+            <button id="generate-report" class="btn">Generate PDF Report</button>
+        </section>
+        
+        <section class="earthquake-list">
+            <h2>Recent Earthquakes</h2>
+            <div class="list-container">
+                <table id="earthquake-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Magnitude</th>
+                            <th>Location</th>
+                            <th>Depth</th>
+                        </tr>
+                    </thead>
+                    <tbody id="earthquake-list">
+                        <tr>
+                            <td colspan="4">Loading earthquake data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    
+    <footer>
+        <p>Data provided by USGS Earthquake Hazards Program</p>
+    </footer>
+    
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="js/map.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
