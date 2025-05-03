@@ -195,3 +195,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - USGS Earthquake Hazards Program for providing real-time earthquake data
 - Leaflet and Chart.js for the visualization libraries
+
+NEZ
