@@ -9,7 +9,11 @@ import requests
 import pandas as pd
 
 from data_processor import fetch_earthquake_data, process_earthquake_data
-from hazard_analysis import perform_hazard_analysis
+from hazard_analysis import (
+    perform_hazard_analysis,  # Keep original function for backward compatibility
+    perform_openquake_hazard_analysis,  # Advanced analysis using OpenQuake
+    get_seismic_hazard_summary  # Simplified summary for quick display
+)
 from report_generator import generate_report
 
 app = Flask(__name__)
@@ -101,6 +105,7 @@ def analyze_earthquakes():
         lat = data.get('latitude')
         lon = data.get('longitude')
         radius = data.get('radius', 300)  # Default 300km radius
+        analysis_type = data.get('analysisType', 'standard')  # New parameter for analysis type
         
         if not lat or not lon:
             return jsonify({"error": "Latitude and longitude are required"}), 400
@@ -115,12 +120,105 @@ def analyze_earthquakes():
         else:
             earthquakes = earthquake_cache["filtered_data"]
         
-        # Perform hazard analysis
-        analysis_results = perform_hazard_analysis(earthquakes, float(lat), float(lon), float(radius))
+        # Choose analysis method based on analysis_type
+        if analysis_type == 'advanced':
+            # Use the OpenQuake-based analysis
+            analysis_results = perform_openquake_hazard_analysis(
+                float(lat), 
+                float(lon), 
+                earthquakes
+            )
+        elif analysis_type == 'summary':
+            # Use the simplified summary
+            analysis_results = get_seismic_hazard_summary(
+                float(lat), 
+                float(lon), 
+                earthquakes
+            )
+        else:
+            # Use the original analysis for backward compatibility
+            analysis_results = perform_hazard_analysis(
+                earthquakes, 
+                float(lat), 
+                float(lon), 
+                float(radius)
+            )
+        
+        # Add the analysis type to the results
+        analysis_results['analysis_type'] = analysis_type
         
         return jsonify(analysis_results)
     except Exception as e:
         print(f"Error in analyze_earthquakes: {str(e)}")
+        return jsonify({"error": f"Failed to process request: {str(e)}"}), 500
+
+@app.route('/api/advanced-analysis', methods=['POST', 'OPTIONS'])
+def advanced_analysis():
+    """New endpoint specifically for advanced OpenQuake analysis"""
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+        
+    try:
+        data = request.json
+        
+        # Extract parameters
+        lat = data.get('latitude')
+        lon = data.get('longitude')
+        intensity_measure_type = data.get('intensityMeasureType', 'PGA')  # Default to PGA
+        
+        if not lat or not lon:
+            return jsonify({"error": "Latitude and longitude are required"}), 400
+        
+        # Get the currently filtered data
+        earthquakes = earthquake_cache["filtered_data"] or earthquake_cache["data"]
+        
+        # Perform OpenQuake analysis
+        analysis_results = perform_openquake_hazard_analysis(
+            float(lat), 
+            float(lon), 
+            earthquakes,
+            intensity_measure_type
+        )
+        
+        return jsonify(analysis_results)
+    except Exception as e:
+        print(f"Error in advanced_analysis: {str(e)}")
+        return jsonify({"error": f"Failed to process request: {str(e)}"}), 500
+
+@app.route('/api/hazard-summary', methods=['GET', 'POST', 'OPTIONS'])
+def hazard_summary():
+    """New endpoint for quick hazard summary"""
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+    
+    try:
+        # Handle both GET and POST requests
+        if request.method == 'GET':
+            lat = request.args.get('latitude')
+            lon = request.args.get('longitude')
+        else:  # POST
+            data = request.json
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        
+        if not lat or not lon:
+            return jsonify({"error": "Latitude and longitude are required"}), 400
+        
+        # Get the currently filtered data
+        earthquakes = earthquake_cache["filtered_data"] or earthquake_cache["data"]
+        
+        # Get the hazard summary
+        summary = get_seismic_hazard_summary(float(lat), float(lon), earthquakes)
+        
+        return jsonify(summary)
+    except Exception as e:
+        print(f"Error in hazard_summary: {str(e)}")
         return jsonify({"error": f"Failed to process request: {str(e)}"}), 500
 
 @app.route('/api/report', methods=['POST', 'OPTIONS'])
@@ -156,6 +254,9 @@ def generate_earthquake_report():
         # Handle min magnitude
         min_magnitude = data.get('minMagnitude', 1.0)
         
+        # New parameter for analysis type
+        analysis_type = data.get('analysisType', 'standard')
+        
         if not lat or not lon:
             return jsonify({"error": "Latitude and longitude are required"}), 400
         
@@ -169,11 +270,36 @@ def generate_earthquake_report():
         else:
             earthquakes = earthquake_cache["filtered_data"]
         
-        # Perform analysis
-        analysis_results = perform_hazard_analysis(earthquakes, float(lat), float(lon), float(radius))
+        # Perform analysis based on type
+        if analysis_type == 'advanced':
+            # Use OpenQuake analysis
+            standard_analysis = perform_hazard_analysis(
+                earthquakes, float(lat), float(lon), float(radius)
+            )
+            advanced_analysis = perform_openquake_hazard_analysis(
+                float(lat), float(lon), earthquakes
+            )
+            # Combine analyses
+            analysis_results = {
+                **standard_analysis,
+                'advanced_analysis': advanced_analysis
+            }
+        else:
+            # Use standard analysis
+            analysis_results = perform_hazard_analysis(
+                earthquakes, float(lat), float(lon), float(radius)
+            )
         
         # Generate PDF report
-        pdf_path = generate_report(earthquakes, analysis_results, title, float(lat), float(lon), float(radius))
+        pdf_path = generate_report(
+            earthquakes, 
+            analysis_results, 
+            title, 
+            float(lat), 
+            float(lon), 
+            float(radius),
+            analysis_type=analysis_type
+        )
         
         # Return PDF file
         return send_file(pdf_path, as_attachment=True, download_name="earthquake_report.pdf")
@@ -187,7 +313,12 @@ def get_status():
         return jsonify({
             "status": "online",
             "last_update": earthquake_cache["last_updated"].isoformat() if earthquake_cache["last_updated"] else None,
-            "earthquake_count": len(earthquake_cache["data"]["features"]) if earthquake_cache["data"] else 0
+            "earthquake_count": len(earthquake_cache["data"]["features"]) if earthquake_cache["data"] else 0,
+            "hazard_analysis_capabilities": [
+                "standard",
+                "advanced_openquake",
+                "hazard_summary"
+            ]
         })
     except Exception as e:
         print(f"Error in get_status: {str(e)}")

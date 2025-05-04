@@ -15,6 +15,13 @@ class EarthquakeApp {
             timePeriod: 'day'
         };
         
+        // Hazard analysis state
+        this.hazardAnalysis = {
+            loading: false,
+            data: null,
+            error: null
+        };
+        
         // API base URL - change this to work in any environment
         this.apiBaseUrl = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' 
             ? `http://${window.location.hostname}:5000` 
@@ -24,6 +31,11 @@ class EarthquakeApp {
         this.bindElements();
         this.bindEventListeners();
         
+        this.analysisSettings = {
+            type: 'standard', // Default analysis type (can be 'standard', 'advanced', or 'summary')
+            intensityMeasureType: 'PGA' // For advanced analysis (PGA or other measures)
+        };
+
         // Initial data load
         this.loadEarthquakeData();
     }
@@ -46,6 +58,19 @@ class EarthquakeApp {
         
         // Earthquake list
         this.earthquakeListEl = document.getElementById('earthquake-list');
+        
+        // Hazard Analysis Elements
+        this.latitudeInput = document.getElementById('latitude-input');
+        this.longitudeInput = document.getElementById('longitude-input');
+        this.radiusInput = document.getElementById('radius-input');
+        this.analyzeButton = document.getElementById('analyze-button');
+        this.hazardProbabilityEl = document.getElementById('hazard-probability');
+        this.hazardRiskLevelEl = document.getElementById('hazard-risk-level');
+        this.hazardStatusEl = document.getElementById('hazard-status');
+        this.useCurrentLocationButton = document.getElementById('use-current-location');
+
+        this.analysisTypeSelect = document.getElementById('analysis-type');
+        this.intensityMeasureSelect = document.getElementById('intensity-measure-type');
     }
 
     /**
@@ -68,6 +93,46 @@ class EarthquakeApp {
         // Buttons
         this.refreshButton.addEventListener('click', () => this.loadEarthquakeData());
         this.reportButton.addEventListener('click', () => this.generateReport());
+        
+        // Hazard Analysis Listeners
+        this.analyzeButton.addEventListener('click', () => this.performHazardAnalysis());
+        
+        if (this.analysisTypeSelect) {
+            this.analysisTypeSelect.addEventListener('change', () => {
+                this.analysisSettings.type = this.analysisTypeSelect.value;
+                // Show/hide advanced options based on analysis type
+                this.updateAnalysisOptionsVisibility();
+            });
+        }
+        
+        if (this.intensityMeasureSelect) {
+            this.intensityMeasureSelect.addEventListener('change', () => {
+                this.analysisSettings.intensityMeasureType = this.intensityMeasureSelect.value;
+            });
+        }
+        
+        // Use current location
+        if (this.useCurrentLocationButton) {
+            this.useCurrentLocationButton.addEventListener('click', () => this.useCurrentLocation());
+        }
+        
+        // Use map click for coordinates
+        if (this.map) {
+            // Listen for custom event from map component
+            document.addEventListener('map-clicked', (event) => {
+                if (event.detail && event.detail.latlng) {
+                    this.latitudeInput.value = event.detail.latlng.lat.toFixed(6);
+                    this.longitudeInput.value = event.detail.latlng.lng.toFixed(6);
+                }
+            });
+        }
+        if (this.analysisTypeSelect) {
+    this.analysisTypeSelect.addEventListener('change', () => {
+        this.analysisSettings.type = this.analysisTypeSelect.value;
+        // Show/hide advanced options based on analysis type
+        this.updateAnalysisOptionsVisibility();
+    });
+}
     }
 
     /**
@@ -292,7 +357,8 @@ class EarthquakeApp {
                     days: days,
                     minMagnitude: this.filterSettings.minMagnitude,
                     earthquakeCount: this.filteredEarthquakes.length,
-                    title: `Earthquake Report (${new Date().toLocaleDateString()})`
+                    title: `Earthquake Report (${new Date().toLocaleDateString()})`,
+                    analysisType: this.analysisSettings.type 
                 })
             });
             
@@ -338,7 +404,320 @@ class EarthquakeApp {
             this.refreshButton.textContent = 'Refresh Data';
         }
     }
+
+    /**
+     * NEW METHOD: Perform hazard analysis using the API
+     */
+    async performHazardAnalysis() {
+        try {
+            // Get values from inputs
+            const latitude = parseFloat(this.latitudeInput.value);
+            const longitude = parseFloat(this.longitudeInput.value);
+            const radius = parseFloat(this.radiusInput.value);
+            
+            // Validate inputs
+            if (isNaN(latitude) || isNaN(longitude) || isNaN(radius)) {
+                throw new Error('Please enter valid numbers for latitude, longitude, and radius.');
+            }
+            
+            if (radius <= 0) {
+                throw new Error('Radius must be greater than zero.');
+            }
+            
+            if (latitude < -90 || latitude > 90) {
+                throw new Error('Latitude must be between -90 and 90 degrees.');
+            }
+            
+            if (longitude < -180 || longitude > 180) {
+                throw new Error('Longitude must be between -180 and 180 degrees.');
+            }
+            
+            // Set loading state
+            this.setHazardAnalysisLoading(true);
+            
+            // Choose API endpoint based on analysis type
+            let endpoint;
+            let requestBody = {
+                latitude: latitude,
+                longitude: longitude,
+                radius: radius
+            };
+            
+            // Add console log to debug analysis settings
+            console.log("Current analysis settings:", this.analysisSettings);
+            
+            if (this.analysisSettings.type === 'advanced') {
+                endpoint = `${this.apiBaseUrl}/api/advanced-analysis`;
+                requestBody.intensityMeasureType = this.analysisSettings.intensityMeasureType;
+            } else if (this.analysisSettings.type === 'summary') {
+                endpoint = `${this.apiBaseUrl}/api/hazard-summary`;
+            } else {
+                // Default to standard analysis
+                endpoint = `${this.apiBaseUrl}/api/analysis`;
+                requestBody.analysisType = 'standard';
+            }
+            
+            console.log(`Calling endpoint: ${endpoint} with data:`, requestBody);
+            
+            // Call the analysis API
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Server response error:', response.status, errorText);
+                throw new Error(`Server error: ${response.status}. ${errorText}`);
+            }
+            
+            // Process the analysis results
+            const analysisData = await response.json();
+            console.log("Analysis response data:", analysisData);
+            
+            // Validate response data
+            if (!analysisData || typeof analysisData !== 'object') {
+                throw new Error('Invalid response data received from server');
+            }
+            
+            // Store data and update UI
+            this.hazardAnalysis.data = analysisData;
+            this.hazardAnalysis.error = null;
+            this.updateHazardAnalysisUI();
+            
+            // Update charts if we have the chart component
+            if (this.charts && this.charts.updateHazardAnalysisCharts) {
+                this.charts.updateHazardAnalysisCharts(analysisData);
+            }
+            
+            // Check if analysisData has a valid risk_level before passing to map
+            const riskLevel = analysisData && analysisData.risk_level ? 
+                analysisData.risk_level : 'Unknown';
+                
+            // Show the results on the map
+            if (this.map && this.map.showHazardAnalysisArea) {
+                this.map.showHazardAnalysisArea(latitude, longitude, radius, riskLevel);
+            }
+            
+        } catch (error) {
+            console.error('Error performing hazard analysis:', error);
+            this.hazardAnalysis.error = error.message || 'Failed to perform hazard analysis';
+            this.hazardAnalysis.data = null;
+            this.updateHazardAnalysisUI();
+        } finally {
+            this.setHazardAnalysisLoading(false);
+        }
+    }
+
+    /**
+     * NEW METHOD: Update hazard analysis UI with results
+     */
+    updateHazardAnalysisUI() {
+        if (this.hazardAnalysis.error) {
+            // Show error state
+            this.hazardStatusEl.textContent = this.hazardAnalysis.error;
+            this.hazardStatusEl.className = 'text-danger';
+            
+            // Clear previous results
+            this.hazardProbabilityEl.textContent = 'N/A';
+            this.hazardRiskLevelEl.textContent = 'N/A';
+            this.hazardRiskLevelEl.className = '';
+            
+        } else if (this.hazardAnalysis.data) {
+            // Show success state with data details
+            const data = this.hazardAnalysis.data;
+            console.log("Updating UI with data:", data);
+            
+            this.hazardStatusEl.textContent = 'Analysis complete';
+            this.hazardStatusEl.className = 'text-success';
+            
+            // Update probability - safely handle missing data
+            if (data.probability !== undefined) {
+                const probability = data.probability * 100;
+                this.hazardProbabilityEl.textContent = `${probability.toFixed(2)}%`;
+            } else if (data.annual_probability !== undefined) {
+                // Try alternative property name
+                const probability = data.annual_probability * 100;
+                this.hazardProbabilityEl.textContent = `${probability.toFixed(2)}% (annual)`;
+            } else {
+                this.hazardProbabilityEl.textContent = 'N/A - No probability data';
+                console.warn("Missing probability data in analysis results:", data);
+            }
+            
+            // Update risk level with color coding - safely handle missing data
+            const riskLevel = data.risk_level || data.riskLevel || data.risk;
+            
+            if (riskLevel && typeof riskLevel === 'string') {
+                this.hazardRiskLevelEl.textContent = riskLevel;
+    
+                // Add color class based on risk level
+                this.hazardRiskLevelEl.className = '';
+                switch (riskLevel.toLowerCase()) {
+                    case 'low':
+                        this.hazardRiskLevelEl.className = 'text-success';
+                        break;
+                    case 'moderate':
+                        this.hazardRiskLevelEl.className = 'text-warning';
+                        break;
+                    case 'high':
+                        this.hazardRiskLevelEl.className = 'text-danger';
+                        break;
+                    case 'very high':
+                        this.hazardRiskLevelEl.className = 'text-danger font-weight-bold';
+                        break;
+                    default:
+                        this.hazardRiskLevelEl.className = 'text-secondary';
+                        break;
+                }
+            } else {
+                // Handle case where riskLevel is missing
+                this.hazardRiskLevelEl.textContent = 'Unknown - Missing risk data';
+                this.hazardRiskLevelEl.className = 'text-secondary';
+                console.warn("Missing risk level data in analysis results:", data);
+            }
+            
+            // Display additional debug information if available
+            if (data.message) {
+                console.log("Server message:", data.message);
+            }
+        }
+    }
+    
+
+    /**
+     * NEW METHOD: Set loading state for hazard analysis
+     * @param {boolean} isLoading - Whether analysis is loading
+     */
+    setHazardAnalysisLoading(isLoading) {
+        this.hazardAnalysis.loading = isLoading;
+        
+        if (isLoading) {
+            this.analyzeButton.disabled = true;
+            this.analyzeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing...';
+            this.hazardStatusEl.textContent = 'Performing analysis, please wait...';
+            this.hazardStatusEl.className = 'text-info';
+        } else {
+            this.analyzeButton.disabled = false;
+            this.analyzeButton.textContent = 'Analyze Hazard';
+        }
+    }
+
+    /**
+     * NEW METHOD: Use current location for hazard analysis
+     */
+    useCurrentLocation() {
+        if (navigator.geolocation) {
+            this.useCurrentLocationButton.disabled = true;
+            this.useCurrentLocationButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Getting location...';
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // Success callback
+                    const { latitude, longitude } = position.coords;
+                    this.latitudeInput.value = latitude.toFixed(6);
+                    this.longitudeInput.value = longitude.toFixed(6);
+                    
+                    // Reset button
+                    this.useCurrentLocationButton.disabled = false;
+                    this.useCurrentLocationButton.textContent = 'Use My Location';
+                    
+                    // Center map on this location if map exists and has centerOn method
+                    if (this.map && this.map.centerOn) {
+                        this.map.centerOn(latitude, longitude);
+                    }
+                },
+                (error) => {
+                    // Error callback
+                    console.error('Geolocation error:', error);
+                    let errorMessage = 'Unable to get your location. ';
+                    
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage += 'Location access was denied. Please check your browser permissions.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage += 'Location information is unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage += 'Location request timed out.';
+                            break;
+                        default:
+                            errorMessage += 'An unknown error occurred.';
+                    }
+                    
+                    alert(errorMessage);
+                    
+                    // Reset button
+                    this.useCurrentLocationButton.disabled = false;
+                    this.useCurrentLocationButton.textContent = 'Use My Location';
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by your browser.');
+        }
+    }
+
+    updateAnalysisOptionsVisibility() {
+        const advancedOptionsContainer = document.getElementById('advanced-analysis-options');
+        
+        if (advancedOptionsContainer) {
+            if (this.analysisSettings.type === 'advanced') {
+                advancedOptionsContainer.classList.remove('d-none');
+            } else {
+                advancedOptionsContainer.classList.add('d-none');
+            }
+        }
+    }
+
+    updateHazardAnalysisCharts(analysisData) {
+        // Only proceed if we have valid data
+        if (!analysisData) {
+            console.error('Cannot update hazard charts: missing data');
+            return;
+        }
+        
+        // Update hazard curve if data is available
+        if (analysisData.hazard_curve) {
+            this.displayHazardCurve(analysisData.hazard_curve);
+        }
+        
+        // Update time probability chart
+        if (analysisData.time_probabilities) {
+            this.displayProbabilityByTimeChart(analysisData);
+        }
+        
+        // Update regional comparison chart
+        if (analysisData.regional_comparison) {
+            this.displayRiskComparisonChart(analysisData);
+        }
+    }
+  
+    displayAdvancedAnalysisResults(advancedData) {
+      // Display any advanced analysis visualizations
+      if (this.charts && advancedData) {
+          // Pass the data to charts class for display
+          if (advancedData.hazard_curve) {
+              this.charts.displayHazardCurve(advancedData.hazard_curve);
+          }
+          
+          // For OpenQuake results specifically
+          if (advancedData.openquake_results) {
+              // Additional charts can be implemented here
+              console.log("OpenQuake results available:", advancedData.openquake_results);
+          }
+      }
+  }
 }
+
+
 
 // Initialize the app once DOM is fully loaded
 document.addEventListener('DOMContentLoaded', () => {

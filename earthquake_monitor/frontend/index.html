@@ -8,10 +8,476 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     
+    <!-- Include responsive CSS framework -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #1abc9c;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #34495e;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            text-align: center;
+            padding: 1.5rem 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 600;
+        }
+        
+        header p {
+            margin: 0.5rem 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            margin-bottom: 30px;
+        }
+        
+        .metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            flex: 1;
+            min-width: 200px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .metric-card h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+        
+        .metric-card p {
+            margin-bottom: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        
+        .chart-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        
+        .map-section {
+            margin-bottom: 30px;
+        }
+        
+        #earthquake-map {
+            height: 500px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .filter-controls {
+            flex: 1;
+            min-width: 280px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background-color: #16a085;
+        }
+        
+        .btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .btn-accent {
+            background-color: var(--accent-color);
+        }
+        
+        .btn-accent:hover {
+            background-color: #c0392b;
+        }
+        
+        .btn-primary {
+            background-color: #0d6efd;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+        }
+        
+        .earthquake-list {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .earthquake-list h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .list-container {
+            overflow-x: auto;
+        }
+        
+        #earthquake-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        #earthquake-table th, #earthquake-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        #earthquake-table th {
+            background-color: var(--light-color);
+            color: var(--primary-color);
+            position: sticky;
+            top: 0;
+        }
+        
+        #earthquake-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .earthquake-popup {
+            padding: 5px;
+        }
+        
+        .earthquake-popup h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+        
+        .earthquake-popup p {
+            margin: 5px 0;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .loading-overlay.active {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--light-color);
+            border-top: 5px solid var(--secondary-color);
+            border-radius: 50%;
+            animation: spinner 1s linear infinite;
+        }
+        
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            padding: 15px 20px;
+            background-color: var(--light-color);
+            border-bottom: 1px solid #e0e0e0;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .card-header h4 {
+            margin: 0;
+            color: var(--primary-color);
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .risk-indicator {
+            height: 20px;
+            width: 100%;
+            background: linear-gradient(to right, #28a745, #ffc107, #dc3545);
+            position: relative;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        
+        .risk-pointer {
+            width: 10px;
+            height: 30px;
+            background-color: #333;
+            position: absolute;
+            top: -5px;
+            transform: translateX(-50%);
+            transition: left 0.5s;
+        }
+        
+        .risk-pointer::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #333;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 5px;
+        }
+        
+        .pagination button {
+            background-color: var(--light-color);
+            border: none;
+            color: var(--primary-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .pagination button.active {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .pagination button:hover:not(.active) {
+            background-color: #dde4e8;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px 0;
+            color: #777;
+        }
+        
+        .no-data i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #aaa;
+        }
+        
+        /* Hazard Analysis Styles */
+        .pulse-marker {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: rgba(0, 123, 255, 0.8);
+            box-shadow: 0 0 0 rgba(0, 123, 255, 0.4);
+            animation: pulseAnimation 2s infinite;
+        }
+        
+        @keyframes pulseAnimation {
+            0% {
+                box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 15px rgba(0, 123, 255, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+            }
+        }
+        
+        .risk-level {
+            font-weight: bold;
+        }
+        
+        .risk-low {
+            color: #28a745;
+        }
+        
+        .risk-moderate {
+            color: #ffc107;
+        }
+        
+        .risk-high {
+            color: #dc3545;
+        }
+        
+        .risk-very-high {
+            color: #9c0000;
+        }
+        
+        /* Analysis Options */
+        #advanced-analysis-options {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px solid #dee2e6;
+        }
+        
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            
+            header p {
+                font-size: 1rem;
+            }
+            
+            .metric-card {
+                min-width: 100%;
+            }
+            
+            #earthquake-map {
+                height: 300px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .filter-controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
     <header>
         <h1>Earthquake Monitor</h1>
         <p>Real-time earthquake data visualization</p>
@@ -21,7 +487,7 @@
         <section class="dashboard">
             <div class="metrics">
                 <div class="metric-card">
-                    <h3>Total Earthquakes Today</h3>
+                    <h3>Total Earthquakes</h3>
                     <p id="earthquake-count">Loading...</p>
                 </div>
                 <div class="metric-card">
@@ -32,6 +498,10 @@
                     <h3>Strongest Today</h3>
                     <p id="strongest-magnitude">Loading...</p>
                 </div>
+                <div class="metric-card">
+                    <h3>Recent Activity</h3>
+                    <p id="recent-activity">Loading...</p>
+                </div>
             </div>
             
             <div class="chart-container">
@@ -39,31 +509,173 @@
             </div>
         </section>
         
+        <section class="controls">
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="min-magnitude">Minimum Magnitude:</label>
+                    <input type="range" id="min-magnitude" min="0" max="8" step="0.1" value="1" class="form-range">
+                    <span id="min-magnitude-value">1.0</span>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="time-period">Time Period:</label>
+                    <select id="time-period" class="form-select">
+                        <option value="hour">Past Hour</option>
+                        <option value="day" selected>Past Day</option>
+                        <option value="week">Past Week</option>
+                        <option value="month">Past Month</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="location-filter">Region:</label>
+                    <select id="location-filter" class="form-select">
+                        <option value="all" selected>All Regions</option>
+                        <option value="north-america">North America</option>
+                        <option value="south-america">South America</option>
+                        <option value="europe">Europe</option>
+                        <option value="asia">Asia</option>
+                        <option value="africa">Africa</option>
+                        <option value="oceania">Oceania</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button id="refresh-data" class="btn">Refresh Data</button>
+                <button id="generate-report" class="btn btn-accent">Generate PDF Report</button>
+            </div>
+        </section>
+        
         <section class="map-section">
             <div id="earthquake-map"></div>
         </section>
         
-        <section class="controls">
-            <div class="filter-controls">
-                <label for="min-magnitude">Minimum Magnitude:</label>
-                <input type="range" id="min-magnitude" min="0" max="8" step="0.1" value="1">
-                <span id="min-magnitude-value">1.0</span>
-                
-                <label for="time-period">Time Period:</label>
-                <select id="time-period">
-                    <option value="hour">Past Hour</option>
-                    <option value="day" selected>Past Day</option>
-                    <option value="week">Past Week</option>
-                    <option value="month">Past Month</option>
-                </select>
+        <!-- Integrated Earthquake Hazard Analysis Section -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">Earthquake Hazard Analysis</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <div class="input-group mb-2">
+                  <span class="input-group-text">Latitude</span>
+                  <input type="number" class="form-control" id="latitude-input" step="0.000001" placeholder="e.g. 37.7749">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="input-group mb-2">
+                  <span class="input-group-text">Longitude</span>
+                  <input type="number" class="form-control" id="longitude-input" step="0.000001" placeholder="e.g. -122.4194">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="input-group mb-2">
+                  <span class="input-group-text">Radius (km)</span>
+                  <input type="number" class="form-control" id="radius-input" min="1" max="1000" value="300" placeholder="Radius in km">
+                </div>
+              </div>
             </div>
             
-            <button id="refresh-data" class="btn">Refresh Data</button>
-            <button id="generate-report" class="btn">Generate PDF Report</button>
-        </section>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <div class="input-group mb-2">
+                  <span class="input-group-text">Analysis Type</span>
+                  <select class="form-select" id="analysis-type">
+                    <option value="standard">Standard</option>
+                    <option value="advanced">Advanced</option>
+                    <option value="summary">Summary</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-primary" id="analyze-button">Analyze Hazard</button>
+                  <button class="btn btn-outline-secondary" id="use-current-location">Use My Location</button>
+                  <small class="text-muted ms-2 d-flex align-items-center">Click on map to set location</small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Advanced Analysis Options (hidden by default) -->
+            <div id="advanced-analysis-options" class="d-none">
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="input-group mb-2">
+                    <span class="input-group-text">Intensity Measure</span>
+                    <select class="form-select" id="intensity-measure-type">
+                      <option value="PGA">Peak Ground Acceleration (PGA)</option>
+                      <option value="SA">Spectral Acceleration (SA)</option>
+                      <option value="PGV">Peak Ground Velocity (PGV)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row mt-3">
+              <div class="col-md-4">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">Analysis Results</h5>
+                    <div class="mt-3">
+                      <p id="hazard-status" class="text-muted">Enter location to perform analysis</p>
+                      <div class="mb-2">
+                        <span class="fw-bold">Probability:</span>
+                        <span id="hazard-probability" class="ms-2">N/A</span>
+                      </div>
+                      <div>
+                        <span class="fw-bold">Risk Level:</span>
+                        <span id="hazard-risk-level" class="ms-2">N/A</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">Hazard Curve</h5>
+                    <div class="chart-container" style="position: relative; height: 200px;">
+                      <canvas id="hazard-curve-chart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Advanced hazard analysis visualizations -->
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">Probability by Time Period</h5>
+                    <div class="chart-container" style="position: relative; height: 200px;">
+                      <canvas id="probability-time-chart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">Regional Risk Comparison</h5>
+                    <div class="chart-container" style="position: relative; height: 200px;">
+                      <canvas id="risk-comparison-chart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         
         <section class="earthquake-list">
-            <h2>Recent Earthquakes</h2>
+            <h2>
+                Recent Earthquakes
+                <span id="earthquake-count-label"></span>
+            </h2>
             <div class="list-container">
                 <table id="earthquake-table">
                     <thead>
@@ -72,20 +684,22 @@
                             <th>Magnitude</th>
                             <th>Location</th>
                             <th>Depth</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="earthquake-list">
                         <tr>
-                            <td colspan="4">Loading earthquake data...</td>
+                            <td colspan="5">Loading earthquake data...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+            <div class="pagination" id="pagination-controls"></div>
         </section>
     </main>
     
-    <footer>
-        <p>Data provided by USGS Earthquake Hazards Program</p>
+    <footer class="bg-dark text-white text-center py-3 mt-5">
+        <p>Data provided by USGS Earthquake Hazards Program | <a href="https://earthquake.usgs.gov/" target="_blank" class="text-white">Visit USGS</a></p>
     </footer>
     
     <!-- Leaflet JS -->
@@ -93,6 +707,9 @@
     
     <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- JavaScript Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     
     <!-- Custom JS -->
     <script src="js/map.js"></script>
