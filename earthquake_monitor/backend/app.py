@@ -15,6 +15,8 @@ from hazard_analysis import (
     get_seismic_hazard_summary  # Simplified summary for quick display
 )
 from report_generator import generate_report
+# Import the prediction function
+from earthquake_prediction import predict_future_earthquakes
 
 app = Flask(__name__)
 # Enable CORS with more specific settings
@@ -334,7 +336,7 @@ def predict_earthquake():
         
     try:
         data = request.json
-        print(f"Received data: {data}")  # Log the received data
+        print(f"Received prediction request data: {data}")  # Log the received data
         
         # Validate input
         if not data:
@@ -357,45 +359,54 @@ def predict_earthquake():
             return jsonify({"error": "Invalid parameter values"}), 400
         
         # Get earthquake data
-        if earthquake_cache["filtered_data"] is None:
-            earthquakes = process_earthquake_data(
-                earthquake_cache["data"],
-                days_ago=365,
-                min_magnitude=3.0
-            )
-        else:
-            earthquakes = earthquake_cache["filtered_data"]
+        if earthquake_cache["data"] is None:
+            return jsonify({"error": "No earthquake data available. Please try again later."}), 503
         
-        print(f"Earthquakes data (raw): {earthquakes}")  # Log earthquake data before further processing
+        # Make sure we're passing a list of features rather than the raw GeoJSON
+        raw_data = earthquake_cache["data"]
         
-        # Validate earthquake data format
-        if not isinstance(earthquakes, list):
-            return jsonify({"error": "Invalid earthquake data format"}), 500
-
-        # Add detailed logging for each earthquake entry
-        for idx, earthquake in enumerate(earthquakes):
-            if not isinstance(earthquake, dict):
-                print(f"Invalid earthquake entry at index {idx}: {earthquake}")  # Log the problematic entry
-                return jsonify({"error": f"Each earthquake entry should be a dictionary (problem at index {idx})"}), 500
+        # Check the raw_data format and extract the features correctly
+        if not isinstance(raw_data, dict):
+            return jsonify({"error": "Invalid earthquake data format: not a dictionary"}), 500
             
-            # Check for necessary properties within each earthquake dictionary
-            if 'properties' not in earthquake or 'geometry' not in earthquake:
-                print(f"Missing properties or geometry at index {idx}: {earthquake}")
-                return jsonify({"error": f"Missing properties or geometry at index {idx}"}), 500
+        if "features" not in raw_data:
+            return jsonify({"error": "Invalid earthquake data format: missing 'features' key"}), 500
+            
+        if not isinstance(raw_data["features"], list):
+            return jsonify({"error": "Invalid earthquake data format: 'features' is not a list"}), 500
+            
+        # Get earthquake data for the past year with sufficient magnitude for predictions
+        processed_earthquakes = process_earthquake_data(
+            raw_data,
+            days_ago=365,  # Use data from the past year
+            min_magnitude=3.0  # Lower threshold for better pattern recognition
+        )
         
-        # Perform prediction
+        # Check if processed_earthquakes is a list
+        if not isinstance(processed_earthquakes, list):
+            print(f"Process_earthquake_data returned non-list type: {type(processed_earthquakes)}")
+            # If it's not a list, extract the features if available
+            if isinstance(processed_earthquakes, dict) and "features" in processed_earthquakes:
+                processed_earthquakes = processed_earthquakes["features"]
+            else:
+                return jsonify({"error": "Failed to process earthquake data into the required format"}), 500
+        
+        print(f"Processing {len(processed_earthquakes)} earthquakes for prediction")
+        
+        # Perform prediction with proper error handling
         prediction_results = predict_future_earthquakes(
             lat, 
             lon, 
-            earthquakes,
+            processed_earthquakes,
             time_horizon=time_horizon,
             intensity_threshold=intensity_threshold
         )
         
         return jsonify(prediction_results)
-        
     except Exception as e:
         print(f"Error in predict_earthquake: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Failed to generate prediction: {str(e)}"}), 500
 
 if __name__ == '__main__':
