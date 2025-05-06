@@ -1,451 +1,716 @@
 /**
- * Chart visualization functionality for Earthquake Monitor
+ * Charts component for earthquake visualization
  */
 class EarthquakeCharts {
-  constructor() {
-      this.magnitudeChart = null;
-      this.hazardCurveChart = null;
-      this.initCharts();
-  }
-
-  /**
-   * Initialize Chart.js charts
-   */
-  initCharts() {
-      // Initialize magnitude distribution chart
-      const magnitudeCtx = document.getElementById('magnitude-chart').getContext('2d');
-      
-      // Create empty magnitude distribution chart
-      this.magnitudeChart = new Chart(magnitudeCtx, {
-          type: 'bar',
-          data: {
-              labels: ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7+'],
-              datasets: [{
-                  label: 'Earthquakes by Magnitude',
-                  data: [0, 0, 0, 0, 0, 0, 0, 0],
-                  backgroundColor: [
-                      '#A3F600', // Green
-                      '#DCF400', // Green-Yellow
-                      '#F7DB11', // Yellow
-                      '#FDB72A', // Orange-Yellow
-                      '#FCA35D', // Orange
-                      '#FF7F41', // Orange-Red
-                      '#FF5000', // Red-Orange
-                      '#FF0000'  // Red
-                  ],
-                  borderColor: '#333',
-                  borderWidth: 1
-              }]
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                  legend: {
-                      display: false
-                  },
-                  title: {
-                      display: true,
-                      text: 'Earthquake Magnitude Distribution',
-                      font: {
-                          size: 16
-                      }
-                  }
-              },
-              scales: {
-                  y: {
-                      beginAtZero: true,
-                      title: {
-                          display: true,
-                          text: 'Number of Earthquakes'
-                      },
-                      ticks: {
-                          stepSize: 1
-                      }
-                  },
-                  x: {
-                      title: {
-                          display: true,
-                          text: 'Magnitude Range'
-                      }
-                  }
-              }
-          }
-      });
-      
-      // Initialize empty hazard curve chart if the element exists
-      const hazardCurveElement = document.getElementById('hazard-curve-chart');
-      if (hazardCurveElement) {
-          const hazardCtx = hazardCurveElement.getContext('2d');
-          
-          // Create empty hazard curve chart
-          this.hazardCurveChart = new Chart(hazardCtx, {
-              type: 'line',
-              data: {
-                  labels: [],
-                  datasets: [{
-                      label: 'Annual Probability of Exceedance',
-                      data: [],
-                      borderColor: 'rgba(255, 99, 132, 1)',
-                      backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                      pointRadius: 3,
-                      tension: 0.1
-                  }]
-              },
-              options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                      x: {
-                          title: {
-                              display: true,
-                              text: 'Peak Ground Acceleration (g)'
-                          },
-                          type: 'logarithmic'
-                      },
-                      y: {
-                          title: {
-                              display: true,
-                              text: 'Annual Probability of Exceedance'
-                          },
-                          type: 'logarithmic'
-                      }
-                  },
-                  plugins: {
-                      title: {
-                          display: true,
-                          text: 'Seismic Hazard Curve'
-                      }
-                  }
-              }
-          });
-      }
-  }
-
-  /**
-   * Count earthquakes by magnitude range
-   * @param {Array} earthquakes - Array of earthquake features
-   * @returns {Array} - Array of counts for each magnitude range
-   */
-  countByMagnitude(earthquakes) {
-      const counts = [0, 0, 0, 0, 0, 0, 0, 0];
-      
-      earthquakes.forEach(earthquake => {
-          const mag = earthquake.properties.mag;
-          
-          if (mag < 1) counts[0]++;
-          else if (mag < 2) counts[1]++;
-          else if (mag < 3) counts[2]++;
-          else if (mag < 4) counts[3]++;
-          else if (mag < 5) counts[4]++;
-          else if (mag < 6) counts[5]++;
-          else if (mag < 7) counts[6]++;
-          else counts[7]++;
-      });
-      
-      return counts;
-  }
-
-  /**
-   * Update charts with earthquake data
-   * @param {Array} earthquakes - Array of earthquake features
-   */
-  updateCharts(earthquakes) {
-      // Update magnitude distribution chart
-      const magnitudeCounts = this.countByMagnitude(earthquakes);
-      
-      this.magnitudeChart.data.datasets[0].data = magnitudeCounts;
-      this.magnitudeChart.update();
-  }
-
-  /**
-   * Display hazard curve chart with analysis data
-   * @param {Object} hazardData - Hazard analysis data with levels and probabilities
-   */
-  displayHazardCurve(hazardData) {
-      // Check if we have the chart element and data
-      if (!this.hazardCurveChart || !hazardData || !hazardData.levels || !hazardData.poes) {
-          console.error('Cannot display hazard curve: missing chart or data');
-          return;
-      }
-      
-      // Extract data from hazard curves
-      const pgaLevels = hazardData.levels;
-      const pgaProbabilities = hazardData.poes;
-      
-      // Update chart data
-      this.hazardCurveChart.data.labels = pgaLevels.map(level => level.toFixed(3) + 'g');
-      this.hazardCurveChart.data.datasets[0].data = pgaProbabilities;
-      
-      // Update chart
-      this.hazardCurveChart.update();
-  }
-  
-  /**
-   * Display probability by time chart
-   * @param {Object} analysisResults - Analysis results including probability data
-   */
-  displayProbabilityByTimeChart(analysisResults) {
-      // Find the chart element
-      const timeChartEl = document.getElementById('probability-time-chart');
-      if (!timeChartEl || !analysisResults || !analysisResults.time_probabilities) {
-          return;
-      }
-      
-      // Destroy existing chart if it exists
-      if (this.probabilityTimeChart) {
-          this.probabilityTimeChart.destroy();
-      }
-      
-      const ctx = timeChartEl.getContext('2d');
-      const timeData = analysisResults.time_probabilities;
-      
-      // Extract time periods and probabilities
-      const timePeriods = Object.keys(timeData);
-      const probabilities = timePeriods.map(period => timeData[period] * 100); // Convert to percentage
-      
-      // Create chart
-      this.probabilityTimeChart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-              labels: timePeriods.map(period => `${period} years`),
-              datasets: [{
-                  label: 'Probability (%)',
-                  data: probabilities,
-                  backgroundColor: probabilities.map(p => {
-                      // Color based on probability
-                      if (p < 10) return 'rgba(40, 167, 69, 0.7)'; // Green
-                      if (p < 30) return 'rgba(255, 193, 7, 0.7)'; // Yellow
-                      if (p < 60) return 'rgba(255, 87, 34, 0.7)'; // Orange
-                      return 'rgba(220, 53, 69, 0.7)'; // Red
-                  }),
-                  borderColor: 'rgba(0, 0, 0, 0.3)',
-                  borderWidth: 1
-              }]
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                  y: {
-                      beginAtZero: true,
-                      title: {
-                          display: true,
-                          text: 'Probability (%)'
-                      },
-                      max: 100
-                  },
-                  x: {
-                      title: {
-                          display: true,
-                          text: 'Time Period'
-                      }
-                  }
-              },
-              plugins: {
-                  title: {
-                      display: true,
-                      text: 'Earthquake Probability by Time Period',
-                      font: {
-                          size: 16
-                      }
-                  },
-                  tooltip: {
-                      callbacks: {
-                          label: function(context) {
-                              return `Probability: ${context.raw.toFixed(2)}%`;
-                          }
-                      }
-                  }
-              }
-          }
-      });
-  }
-  
-  /**
-   * Display risk comparison chart
-   * @param {Object} analysisResults - Analysis results including comparison data
-   */
-  displayRiskComparisonChart(analysisResults) {
-      // Find the chart element
-      const comparisonChartEl = document.getElementById('risk-comparison-chart');
-      if (!comparisonChartEl || !analysisResults || !analysisResults.regional_comparison) {
-          return;
-      }
-      
-      // Destroy existing chart if it exists
-      if (this.riskComparisonChart) {
-          this.riskComparisonChart.destroy();
-      }
-      
-      const ctx = comparisonChartEl.getContext('2d');
-      const comparisonData = analysisResults.regional_comparison;
-      
-      // Extract regions and their risk levels
-      const regions = Object.keys(comparisonData);
-      const riskScores = regions.map(region => comparisonData[region]);
-      
-      // Find current location's index (assuming it's included in the comparison)
-      const currentLocationIndex = regions.findIndex(r => r === 'Selected Location');
-      
-      // Create background colors array, highlighting current location
-      const backgroundColors = riskScores.map((score, index) => {
-          // Highlight the current location
-          if (index === currentLocationIndex) {
-              return 'rgba(0, 123, 255, 0.8)'; // Blue for current location
-          }
-          
-          // Color others based on risk score
-          if (score < 0.3) return 'rgba(40, 167, 69, 0.6)'; // Green
-          if (score < 0.6) return 'rgba(255, 193, 7, 0.6)'; // Yellow
-          return 'rgba(220, 53, 69, 0.6)'; // Red
-      });
-      
-      // Create chart
-      this.riskComparisonChart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-              labels: regions,
-              datasets: [{
-                  label: 'Risk Level',
-                  data: riskScores,
-                  backgroundColor: backgroundColors,
-                  borderColor: 'rgba(0, 0, 0, 0.3)',
-                  borderWidth: 1
-              }]
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              indexAxis: 'y', // Horizontal bar chart
-              scales: {
-                  x: {
-                      beginAtZero: true,
-                      title: {
-                          display: true,
-                          text: 'Relative Risk Score'
-                      },
-                      max: 1.0
-                  }
-              },
-              plugins: {
-                  title: {
-                      display: true,
-                      text: 'Regional Risk Comparison',
-                      font: {
-                          size: 16
-                      }
-                  },
-                  tooltip: {
-                      callbacks: {
-                          label: function(context) {
-                              const score = context.raw;
-                              let riskText = 'Low Risk';
-                              if (score >= 0.7) riskText = 'Very High Risk';
-                              else if (score >= 0.5) riskText = 'High Risk';
-                              else if (score >= 0.3) riskText = 'Moderate Risk';
-                              
-                              return `${riskText} (Score: ${score.toFixed(2)})`;
-                          }
-                      }
-                  }
-              }
-          }
-      });
-  }
-  
-  /**
-   * Update all hazard analysis charts based on new analysis data
-   * @param {Object} analysisData - Complete analysis data from the API
-   */
-
-
-displayHazardSpectrum(spectrumData) {
-    // Find the chart element
-    const spectrumChartEl = document.getElementById('hazard-spectrum-chart');
-    if (!spectrumChartEl || !spectrumData || !spectrumData.periods || !spectrumData.accelerations) {
-        return;
+    constructor() {
+        this.magnitudeChart = null;
+        this.depthChart = null;
+        this.timeChart = null;
+        
+        this.initCharts();
     }
     
-    // Destroy existing chart if it exists
-    if (this.hazardSpectrumChart) {
-        this.hazardSpectrumChart.destroy();
+    /**
+     * Initialize chart containers
+     */
+    initCharts() {
+        try {
+            // Check if chart containers exist
+            const magnitudeChartEl = document.getElementById('magnitude-chart');
+            const depthChartEl = document.getElementById('depth-chart');
+            const timeChartEl = document.getElementById('time-chart');
+            
+            if (!magnitudeChartEl || !depthChartEl || !timeChartEl) {
+                console.warn('One or more chart containers not found');
+            }
+            
+        } catch (error) {
+            console.error('Error initializing charts:', error);
+        }
     }
     
-    const ctx = spectrumChartEl.getContext('2d');
+    /**
+     * Update all charts with earthquake data
+     * @param {Array} earthquakes - Array of earthquake features
+     */
+    updateCharts(earthquakes) {
+        try {
+            this.updateMagnitudeChart(earthquakes);
+            this.updateDepthChart(earthquakes);
+            this.updateTimeChart(earthquakes);
+        } catch (error) {
+            console.error('Error updating charts:', error);
+        }
+    }
     
-    // Create chart
-    this.hazardSpectrumChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: spectrumData.periods,
-            datasets: [{
-                label: 'Spectral Acceleration (g)',
-                data: spectrumData.accelerations,
-                borderColor: 'rgba(54, 162, 235, 1)',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                pointRadius: 3,
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Period (s)'
-                    },
-                    type: 'logarithmic'
+    /**
+     * Update magnitude distribution chart
+     * @param {Array} earthquakes - Array of earthquake features
+     */
+    updateMagnitudeChart(earthquakes) {
+        try {
+            const chartElement = document.getElementById('magnitude-chart');
+            if (!chartElement) {
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (this.magnitudeChart) {
+                this.magnitudeChart.destroy();
+            }
+            
+            // Create magnitude bins
+            const bins = {
+                '0-1': 0,
+                '1-2': 0,
+                '2-3': 0,
+                '3-4': 0,
+                '4-5': 0,
+                '5-6': 0,
+                '6-7': 0,
+                '7+': 0
+            };
+            
+            // Count earthquakes in each bin
+            earthquakes.forEach(eq => {
+                const mag = eq.properties.mag;
+                if (mag < 1) bins['0-1']++;
+                else if (mag < 2) bins['1-2']++;
+                else if (mag < 3) bins['2-3']++;
+                else if (mag < 4) bins['3-4']++;
+                else if (mag < 5) bins['4-5']++;
+                else if (mag < 6) bins['5-6']++;
+                else if (mag < 7) bins['6-7']++;
+                else bins['7+']++;
+            });
+            
+            // Create chart
+            const ctx = chartElement.getContext('2d');
+            this.magnitudeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(bins),
+                    datasets: [{
+                        label: 'Number of Earthquakes',
+                        data: Object.values(bins),
+                        backgroundColor: [
+                            'rgba(163, 246, 0, 0.7)',   // 0-1
+                            'rgba(220, 244, 0, 0.7)',   // 1-2
+                            'rgba(247, 219, 17, 0.7)',  // 2-3
+                            'rgba(253, 183, 42, 0.7)',  // 3-4
+                            'rgba(252, 163, 93, 0.7)',  // 4-5
+                            'rgba(255, 95, 101, 0.7)',  // 5-6
+                            'rgba(255, 50, 50, 0.7)',   // 6-7
+                            'rgba(190, 0, 0, 0.7)'      // 7+
+                        ],
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 1
+                    }]
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Spectral Acceleration (g)'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Earthquakes'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Magnitude Range'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Earthquake Magnitude Distribution'
+                        }
                     }
                 }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Response Spectrum'
+            });
+            
+        } catch (error) {
+            console.error('Error updating magnitude chart:', error);
+        }
+    }
+    
+    /**
+     * Update depth distribution chart
+     * @param {Array} earthquakes - Array of earthquake features
+     */
+    updateDepthChart(earthquakes) {
+        try {
+            const chartElement = document.getElementById('depth-chart');
+            if (!chartElement) {
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (this.depthChart) {
+                this.depthChart.destroy();
+            }
+            
+            // Create depth bins (in km)
+            const bins = {
+                '0-10': 0,
+                '10-30': 0,
+                '30-70': 0,
+                '70-150': 0,
+                '150-300': 0,
+                '300+': 0
+            };
+            
+            // Count earthquakes in each bin
+            earthquakes.forEach(eq => {
+                const depth = eq.geometry.coordinates[2];
+                if (depth < 10) bins['0-10']++;
+                else if (depth < 30) bins['10-30']++;
+                else if (depth < 70) bins['30-70']++;
+                else if (depth < 150) bins['70-150']++;
+                else if (depth < 300) bins['150-300']++;
+                else bins['300+']++;
+            });
+            
+            // Create chart
+            const ctx = chartElement.getContext('2d');
+            this.depthChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(bins),
+                    datasets: [{
+                        label: 'Number of Earthquakes',
+                        data: Object.values(bins),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(255, 159, 64, 0.7)',
+                            'rgba(255, 205, 86, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(153, 102, 255, 0.7)'
+                        ],
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Earthquakes'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Depth Range (km)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Earthquake Depth Distribution'
+                        }
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error updating depth chart:', error);
+        }
+    }
+    
+    /**
+     * Update time distribution chart
+     * @param {Array} earthquakes - Array of earthquake features
+     */
+    updateTimeChart(earthquakes) {
+        try {
+            const chartElement = document.getElementById('time-chart');
+            if (!chartElement) {
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (this.timeChart) {
+                this.timeChart.destroy();
+            }
+            
+            // Sort earthquakes by time (oldest first)
+            const sortedEarthquakes = [...earthquakes].sort((a, b) => {
+                return a.properties.time - b.properties.time;
+            });
+            
+            // Prepare data for time chart
+            const times = [];
+            const magnitudes = [];
+            const colors = [];
+            
+            sortedEarthquakes.forEach(eq => {
+                const time = new Date(eq.properties.time);
+                const mag = eq.properties.mag;
+                
+                times.push(time);
+                magnitudes.push(mag);
+                colors.push(this.getMagnitudeColor(mag));
+            });
+            
+            // Create chart
+            const ctx = chartElement.getContext('2d');
+            this.timeChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Earthquakes',
+                        data: times.map((time, i) => ({
+                            x: time,
+                            y: magnitudes[i]
+                        })),
+                        backgroundColor: colors,
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 1,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MMM D'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Magnitude'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Earthquake Magnitudes Over Time'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = context.raw;
+                                    return `Magnitude: ${point.y.toFixed(1)} - ${new Date(point.x).toLocaleString()}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error updating time chart:', error);
+        }
+    }
+    
+    /**
+     * Get color based on earthquake magnitude
+     * @param {number} magnitude - Earthquake magnitude
+     * @returns {string} Color in rgba format
+     */
+    getMagnitudeColor(magnitude) {
+        if (magnitude < 2) return 'rgba(163, 246, 0, 0.7)';   // Green
+        if (magnitude < 3) return 'rgba(220, 244, 0, 0.7)';   // Yellow-green
+        if (magnitude < 4) return 'rgba(247, 219, 17, 0.7)';  // Yellow
+        if (magnitude < 5) return 'rgba(253, 183, 42, 0.7)';  // Orange
+        if (magnitude < 6) return 'rgba(252, 163, 93, 0.7)';  // Light orange
+        if (magnitude < 7) return 'rgba(255, 95, 101, 0.7)';  // Red-orange
+        return 'rgba(190, 0, 0, 0.7)';                        // Dark red for 7+
+    }
+    
+    /**
+     * Update hazard analysis charts
+     * @param {Object} analysisData - Analysis data
+     */
+    updateHazardAnalysisCharts(analysisData) {
+        // Only proceed if we have valid data
+        if (!analysisData) {
+            console.error('Cannot update hazard charts: missing data');
+            return;
+        }
+        
+        try {
+            // Create basic chart data if not provided by backend
+            if (!analysisData.hazard_curve && analysisData.probability !== undefined) {
+                // Generate simple hazard curve data based on probability
+                analysisData.hazard_curve = {
+                    levels: [0.1, 0.2, 0.3, 0.4, 0.5],
+                    poes: [
+                            analysisData.probability,
+                            analysisData.probability * 0.75,
+                            analysisData.probability * 0.5,
+                            analysisData.probability * 0.25,
+                            analysisData.probability * 0.1
+                        ]
+                    };
+                }
+                
+                if (!analysisData.time_probabilities && analysisData.probability !== undefined) {
+                    // Generate simple time probability data
+                    analysisData.time_probabilities = {
+                        "1": analysisData.probability,
+                        "5": 1 - Math.pow(1 - analysisData.probability, 5),
+                        "10": 1 - Math.pow(1 - analysisData.probability, 10),
+                        "50": 1 - Math.pow(1 - analysisData.probability, 50)
+                    };
+                }
+                
+                if (!analysisData.regional_comparison && analysisData.risk_level) {
+                    // Generate simple regional comparison
+                    const riskScore = {
+                        'Low': 0.2,
+                        'Moderate': 0.5,
+                        'High': 0.7,
+                        'Very High': 0.9
+                    }[analysisData.risk_level] || 0.3;
+                    
+                    analysisData.regional_comparison = {
+                        'Selected Location': riskScore,
+                        'Global Average': 0.3,
+                        'Regional Average': 0.4,
+                        'High Risk Zone': 0.8
+                    };
+                }
+                
+                // Update hazard curve if data is available
+                if (analysisData.hazard_curve) {
+                    this.displayHazardCurve(analysisData.hazard_curve);
+                }
+                
+                // Update time probability chart
+                if (analysisData.time_probabilities) {
+                    this.displayProbabilityByTimeChart(analysisData.time_probabilities);
+                }
+                
+                // Update regional comparison chart
+                if (analysisData.regional_comparison) {
+                    this.displayRiskComparisonChart(analysisData.regional_comparison);
+                }
+                
+                // For advanced analysis type
+                if (this.analysisSettings.type === 'advanced' && analysisData.openquake_results) {
+                    this.displayAdvancedAnalysisResults(analysisData);
+                }
+                
+            } catch (error) {
+                console.error('Error updating hazard analysis charts:', error);
+            }
+        }
+        
+        /**
+         * Display hazard curve chart
+         * @param {Object} hazardData - Hazard curve data with levels and poes arrays
+         */
+        displayHazardCurve(hazardData) {
+            try {
+                const chartElement = document.getElementById('hazard-curve-chart');
+                if (!chartElement) {
+                    console.error('Hazard curve chart element not found');
+                    return;
+                }
+                
+                // Destroy existing chart if it exists
+                if (this.hazardCurveChart) {
+                    this.hazardCurveChart.destroy();
+                }
+                
+                const ctx = chartElement.getContext('2d');
+                
+                // Create new chart with the data
+                this.hazardCurveChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: hazardData.levels.map(level => level.toFixed(2) + 'g'),
+                        datasets: [{
+                            label: 'Probability of Exceedance',
+                            data: hazardData.poes,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            pointRadius: 4,
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Seismic Hazard Curve'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Probability: ${(context.raw * 100).toFixed(2)}%`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Peak Ground Acceleration (g)'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Probability of Exceedance'
+                                },
+                                min: 0,
+                                max: 1,
+                                ticks: {
+                                    callback: function(value) {
+                                        return (value * 100) + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error displaying hazard curve:', error);
+            }
+        }
+        
+        /**
+         * Display probability by time chart
+         * @param {Object} analysisData - Analysis data containing time probabilities
+         */
+        displayProbabilityByTimeChart(analysisData) {
+            try {
+                const chartElement = document.getElementById('probability-time-chart');
+                if (!chartElement) {
+                    console.error('Probability time chart element not found');
+                    return;
+                }
+                
+                // Destroy existing chart if it exists
+                if (this.probabilityTimeChart) {
+                    this.probabilityTimeChart.destroy();
+                }
+                
+                const ctx = chartElement.getContext('2d');
+                const timeData = analysisData.time_probabilities;
+                
+                // Extract time periods and probabilities
+                const timePeriods = Object.keys(timeData);
+                const probabilities = timePeriods.map(period => timeData[period]);
+                
+                // Create chart
+                this.probabilityTimeChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: timePeriods.map(period => `${period} years`),
+                        datasets: [{
+                            label: 'Probability',
+                            data: probabilities,
+                            backgroundColor: probabilities.map(p => {
+                                if (p < 0.1) return 'rgba(40, 167, 69, 0.7)';
+                                if (p < 0.3) return 'rgba(255, 193, 7, 0.7)';
+                                if (p < 0.6) return 'rgba(255, 87, 34, 0.7)';
+                                return 'rgba(220, 53, 69, 0.7)';
+                            }),
+                            borderColor: 'rgba(0, 0, 0, 0.3)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Probability'
+                                },
+                                max: 1,
+                                ticks: {
+                                    callback: function(value) {
+                                        return (value * 100) + '%';
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Time Period'
+                                }
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Earthquake Probability by Time Period'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Probability: ${(context.raw * 100).toFixed(2)}%`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error displaying probability by time chart:', error);
+            }
+        }
+        
+        /**
+         * Display risk comparison chart
+         * @param {Object} analysisData - Analysis data containing regional comparison
+         */
+        displayRiskComparisonChart(analysisData) {
+            try {
+                const chartElement = document.getElementById('risk-comparison-chart');
+                if (!chartElement) {
+                    console.error('Risk comparison chart element not found');
+                    return;
+                }
+                
+                // Destroy existing chart if it exists
+                if (this.riskComparisonChart) {
+                    this.riskComparisonChart.destroy();
+                }
+                
+                const ctx = chartElement.getContext('2d');
+                const comparisonData = analysisData.regional_comparison;
+                
+                // Extract regions and their risk levels
+                const regions = Object.keys(comparisonData);
+                const riskScores = regions.map(region => comparisonData[region]);
+                
+                // Create chart
+                this.riskComparisonChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: regions,
+                        datasets: [{
+                            label: 'Risk Score',
+                            data: riskScores,
+                            backgroundColor: regions.map((_, index) => {
+                                const score = riskScores[index];
+                                if (index === 0) return 'rgba(0, 123, 255, 0.8)'; // Highlight selected location
+                                if (score < 0.3) return 'rgba(40, 167, 69, 0.6)';
+                                if (score < 0.6) return 'rgba(255, 193, 7, 0.6)';
+                                return 'rgba(220, 53, 69, 0.6)';
+                            }),
+                            borderColor: 'rgba(0, 0, 0, 0.3)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Risk Score'
+                                },
+                                max: 1
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Regional Risk Comparison'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const score = context.raw;
+                                        let riskText = 'Low Risk';
+                                        if (score >= 0.7) riskText = 'Very High Risk';
+                                        else if (score >= 0.5) riskText = 'High Risk';
+                                        else if (score >= 0.3) riskText = 'Moderate Risk';
+                                        return `${riskText} (Score: ${score.toFixed(2)})`;
+                                    }
+                                }
+                            },
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error displaying risk comparison chart:', error);
+            }
+        }
+        
+        /**
+         * Display advanced analysis results
+         * @param {Object} advancedData - Advanced analysis data
+         */
+        displayAdvancedAnalysisResults(advancedData) {
+            // Display any advanced analysis visualizations
+            if (advancedData) {
+                console.log("Processing advanced analysis data:", advancedData);
+                
+                // For OpenQuake results specifically
+                if (advancedData.openquake_results) {
+                    console.log("OpenQuake results available:", advancedData.openquake_results);
+                    
+                    // Additional visualizations for OpenQuake results can be implemented here
+                    // For example, displaying hazard disaggregation or spectral acceleration
+                    if (advancedData.openquake_results.disaggregation) {
+                        // Implement disaggregation visualization
+                    }
+                    
+                    if (advancedData.openquake_results.spectral_acceleration) {
+                        // Implement spectral acceleration curve
+                    }
+                }
+                
+                // Handle any other advanced analysis visualizations
+                if (advancedData.vulnerability_assessment) {
+                    this.displayVulnerabilityAssessment(advancedData.vulnerability_assessment);
                 }
             }
         }
-    });
-}
-updateHazardAnalysisCharts(analysisData) {
-    // Only proceed if we have valid data
-    if (!analysisData) {
-        console.error('Cannot update hazard charts: missing data');
-        return;
+        
+        /**
+         * Display vulnerability assessment visualization
+         * @param {Object} vulnerabilityData - Vulnerability assessment data
+         */
+        displayVulnerabilityAssessment(vulnerabilityData) {
+            // Implementation for vulnerability assessment visualization
+            // This could include building fragility curves, damage probability matrices, etc.
+            console.log("Displaying vulnerability assessment data:", vulnerabilityData);
+            
+            // Implementation would depend on the specific data structure and requirements
+        }
     }
-    
-    // Update hazard curve if data is available
-    if (analysisData.hazard_curve) {
-        this.displayHazardCurve(analysisData.hazard_curve);
-    }
-    
-    // Update time probability chart
-    if (analysisData.time_probabilities) {
-        this.displayProbabilityByTimeChart(analysisData);
-    }
-    
-    // Update regional comparison chart
-    if (analysisData.regional_comparison) {
-        this.displayRiskComparisonChart(analysisData);
-    }
-    
-    // Display OpenQuake-specific results
-    if (analysisData.advanced_analysis && analysisData.advanced_analysis.hazard_spectrum) {
-        this.displayHazardSpectrum(analysisData.advanced_analysis.hazard_spectrum);
-    }
-    
-    // Display disaggregation results if available
-    if (analysisData.advanced_analysis && analysisData.advanced_analysis.disaggregation) {
-        // Implement disaggregation visualization if needed
-        console.log("Disaggregation data available:", analysisData.advanced_analysis.disaggregation);
-    }
-}
-}

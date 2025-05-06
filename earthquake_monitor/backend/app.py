@@ -324,6 +324,80 @@ def get_status():
         print(f"Error in get_status: {str(e)}")
         return jsonify({"error": f"Failed to get status: {str(e)}"}), 500
 
+@app.route('/api/predict-earthquake', methods=['POST', 'OPTIONS'])
+def predict_earthquake():
+    """Endpoint for OpenQuake-based earthquake prediction"""
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+        
+    try:
+        data = request.json
+        print(f"Received data: {data}")  # Log the received data
+        
+        # Validate input
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        lat = data.get('latitude')
+        lon = data.get('longitude')
+        time_horizon = data.get('timeHorizon', 30)
+        intensity_threshold = data.get('intensityThreshold', 4.0)
+        
+        if not lat or not lon:
+            return jsonify({"error": "Latitude and longitude are required"}), 400
+            
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            time_horizon = int(time_horizon)
+            intensity_threshold = float(intensity_threshold)
+        except ValueError:
+            return jsonify({"error": "Invalid parameter values"}), 400
+        
+        # Get earthquake data
+        if earthquake_cache["filtered_data"] is None:
+            earthquakes = process_earthquake_data(
+                earthquake_cache["data"],
+                days_ago=365,
+                min_magnitude=3.0
+            )
+        else:
+            earthquakes = earthquake_cache["filtered_data"]
+        
+        print(f"Earthquakes data (raw): {earthquakes}")  # Log earthquake data before further processing
+        
+        # Validate earthquake data format
+        if not isinstance(earthquakes, list):
+            return jsonify({"error": "Invalid earthquake data format"}), 500
+
+        # Add detailed logging for each earthquake entry
+        for idx, earthquake in enumerate(earthquakes):
+            if not isinstance(earthquake, dict):
+                print(f"Invalid earthquake entry at index {idx}: {earthquake}")  # Log the problematic entry
+                return jsonify({"error": f"Each earthquake entry should be a dictionary (problem at index {idx})"}), 500
+            
+            # Check for necessary properties within each earthquake dictionary
+            if 'properties' not in earthquake or 'geometry' not in earthquake:
+                print(f"Missing properties or geometry at index {idx}: {earthquake}")
+                return jsonify({"error": f"Missing properties or geometry at index {idx}"}), 500
+        
+        # Perform prediction
+        prediction_results = predict_future_earthquakes(
+            lat, 
+            lon, 
+            earthquakes,
+            time_horizon=time_horizon,
+            intensity_threshold=intensity_threshold
+        )
+        
+        return jsonify(prediction_results)
+        
+    except Exception as e:
+        print(f"Error in predict_earthquake: {str(e)}")
+        return jsonify({"error": f"Failed to generate prediction: {str(e)}"}), 500
+
 if __name__ == '__main__':
     # Initialize data on startup
     try:

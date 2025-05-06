@@ -14,6 +14,11 @@ class EarthquakeApp {
             minMagnitude: 1.0,
             timePeriod: 'day'
         };
+
+        this.predictionSettings = {
+            timeHorizon: 30,  // Default 30 days
+            intensityThreshold: 4.0  // Default magnitude 4.0
+        };
         
         // Hazard analysis state
         this.hazardAnalysis = {
@@ -35,6 +40,11 @@ class EarthquakeApp {
             type: 'standard', // Default analysis type (can be 'standard', 'advanced', or 'summary')
             intensityMeasureType: 'PGA' // For advanced analysis (PGA or other measures)
         };
+
+        // Chart objects for later reference
+        this.hazardCurveChart = null;
+        this.probabilityTimeChart = null;
+        this.riskComparisonChart = null;
 
         // Initial data load
         this.loadEarthquakeData();
@@ -71,6 +81,11 @@ class EarthquakeApp {
 
         this.analysisTypeSelect = document.getElementById('analysis-type');
         this.intensityMeasureSelect = document.getElementById('intensity-measure-type');
+        this.predictButton = document.getElementById('predict-button');
+this.predictionStatusEl = document.getElementById('prediction-status');
+this.predictionProbabilityEl = document.getElementById('prediction-probability');
+this.predictionLikelihoodEl = document.getElementById('prediction-likelihood');
+this.predictionTimeframeEl = document.getElementById('prediction-timeframe');
     }
 
     /**
@@ -126,13 +141,18 @@ class EarthquakeApp {
                 }
             });
         }
-        if (this.analysisTypeSelect) {
-    this.analysisTypeSelect.addEventListener('change', () => {
-        this.analysisSettings.type = this.analysisTypeSelect.value;
-        // Show/hide advanced options based on analysis type
-        this.updateAnalysisOptionsVisibility();
-    });
-}
+
+        document.getElementById('prediction-time-horizon').addEventListener('input', (e) => {
+            this.predictionSettings.timeHorizon = e.target.value;
+            document.getElementById('prediction-time-horizon-value').textContent = e.target.value;
+        });
+        
+        document.getElementById('prediction-intensity-threshold').addEventListener('input', (e) => {
+            this.predictionSettings.intensityThreshold = parseFloat(e.target.value);
+            document.getElementById('prediction-intensity-threshold-value').textContent = e.target.value;
+        });
+        
+        this.predictButton.addEventListener('click', () => this.performPrediction());
     }
 
     /**
@@ -406,7 +426,7 @@ class EarthquakeApp {
     }
 
     /**
-     * NEW METHOD: Perform hazard analysis using the API
+     * Perform hazard analysis using the API
      */
     async performHazardAnalysis() {
         try {
@@ -488,10 +508,8 @@ class EarthquakeApp {
             this.hazardAnalysis.error = null;
             this.updateHazardAnalysisUI();
             
-            // Update charts if we have the chart component
-            if (this.charts && this.charts.updateHazardAnalysisCharts) {
-                this.charts.updateHazardAnalysisCharts(analysisData);
-            }
+            // Update charts with the analysis data
+            this.updateHazardAnalysisCharts(analysisData);
             
             // Check if analysisData has a valid risk_level before passing to map
             const riskLevel = analysisData && analysisData.risk_level ? 
@@ -513,7 +531,7 @@ class EarthquakeApp {
     }
 
     /**
-     * NEW METHOD: Update hazard analysis UI with results
+     * Update hazard analysis UI with results
      */
     updateHazardAnalysisUI() {
         if (this.hazardAnalysis.error) {
@@ -585,10 +603,9 @@ class EarthquakeApp {
             }
         }
     }
-    
 
     /**
-     * NEW METHOD: Set loading state for hazard analysis
+     * Set loading state for hazard analysis
      * @param {boolean} isLoading - Whether analysis is loading
      */
     setHazardAnalysisLoading(isLoading) {
@@ -606,7 +623,7 @@ class EarthquakeApp {
     }
 
     /**
-     * NEW METHOD: Use current location for hazard analysis
+     * Use current location for hazard analysis
      */
     useCurrentLocation() {
         if (navigator.geolocation) {
@@ -665,6 +682,9 @@ class EarthquakeApp {
         }
     }
 
+    /**
+     * Update visibility of advanced analysis options based on analysis type
+     */
     updateAnalysisOptionsVisibility() {
         const advancedOptionsContainer = document.getElementById('advanced-analysis-options');
         
@@ -677,6 +697,10 @@ class EarthquakeApp {
         }
     }
 
+    /**
+     * Update hazard analysis charts with new data
+     * @param {Object} analysisData - Analysis results from API
+     */
     updateHazardAnalysisCharts(analysisData) {
         // Only proceed if we have valid data
         if (!analysisData) {
@@ -684,42 +708,956 @@ class EarthquakeApp {
             return;
         }
         
-        // Update hazard curve if data is available
-        if (analysisData.hazard_curve) {
-            this.displayHazardCurve(analysisData.hazard_curve);
-        }
-        
-        // Update time probability chart
-        if (analysisData.time_probabilities) {
-            this.displayProbabilityByTimeChart(analysisData);
-        }
-        
-        // Update regional comparison chart
-        if (analysisData.regional_comparison) {
-            this.displayRiskComparisonChart(analysisData);
+        try {
+            // Create basic chart data if not provided by backend
+            if (!analysisData.hazard_curve && analysisData.probability !== undefined) {
+                // Generate simple hazard curve data based on probability
+                analysisData.hazard_curve = {
+                    levels: [0.1, 0.2, 0.3, 0.4, 0.5],
+                    poes: [
+                        analysisData.probability,
+                        analysisData.probability * 0.75,
+                        analysisData.probability * 0.5,
+                        analysisData.probability * 0.25,
+                        analysisData.probability * 0.1
+                    ]
+                };
+            }
+            
+            if (!analysisData.time_probabilities && analysisData.probability !== undefined) {
+                // Generate simple time probability data
+                analysisData.time_probabilities = {
+                    "1": analysisData.probability,
+                    "5": 1 - Math.pow(1 - analysisData.probability, 5),
+                    "10": 1 - Math.pow(1 - analysisData.probability, 10),
+                    "50": 1 - Math.pow(1 - analysisData.probability, 50)
+                };
+            }
+            
+            if (!analysisData.regional_comparison && analysisData.risk_level) {
+                // Generate simple regional comparison
+                const riskScore = {
+                    'Low': 0.2,
+                    'Moderate': 0.5,
+                    'High': 0.7,
+                    'Very High': 0.9
+                }[analysisData.risk_level] || 0.3;
+                
+                analysisData.regional_comparison = {
+                    'Selected Location': riskScore,
+                    'Global Average': 0.3,
+                    'Regional Average': 0.4,
+                    'High Risk Zone': 0.8
+                };
+            }
+            
+            // Update hazard curve if data is available
+            if (analysisData.hazard_curve) {
+                this.displayHazardCurve(analysisData.hazard_curve);
+            }
+            
+            // Update time probability chart
+            if (analysisData.time_probabilities) {
+                this.displayProbabilityByTimeChart(analysisData.time_probabilities);
+            }
+            
+            // Update regional comparison chart
+            if (analysisData.regional_comparison) {
+                this.displayRiskComparisonChart(analysisData.regional_comparison);
+            }
+            
+            // For advanced analysis type
+            if (this.analysisSettings.type === 'advanced' && analysisData.openquake_results) {
+                this.displayAdvancedAnalysisResults(analysisData);
+            }
+            
+        } catch (error) {
+            console.error('Error updating hazard analysis charts:', error);
         }
     }
-  
+
+    /**
+     * Display hazard curve chart
+     * @param {Object} hazardData - Hazard curve data with levels and poes arrays
+     */
+    displayHazardCurve(hazardData) {
+        try {
+            const chartElement = document.getElementById('hazard-curve-chart');
+            if (!chartElement) {
+                console.error('Hazard curve chart element not found');
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (this.hazardCurveChart) {
+                this.hazardCurveChart.destroy();
+            }
+            
+            const ctx = chartElement.getContext('2d');
+            
+            // Create new chart with the data
+            this.hazardCurveChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hazardData.levels.map(level => level.toFixed(2) + 'g'),
+                    datasets: [{
+                        label: 'Probability of Exceedance',
+                        data: hazardData.poes,
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        pointRadius: 4,
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Seismic Hazard Curve'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Probability: ${(context.raw * 100).toFixed(2)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Peak Ground Acceleration (g)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Probability of Exceedance'
+                            },
+                            min: 0,
+                            max: 1,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value * 100) + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error displaying hazard curve:', error);
+        }
+    }
+
+    /**
+     * Display probability by time chart
+     * @param {Object} analysisData - Analysis data containing time probabilities
+     */
+    displayProbabilityByTimeChart(analysisData) {
+        try {
+            const chartElement = document.getElementById('probability-time-chart');
+            if (!chartElement) {
+                console.error('Probability time chart element not found');
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (this.probabilityTimeChart) {
+                this.probabilityTimeChart.destroy();
+            }
+            
+            const ctx = chartElement.getContext('2d');
+            const timeData = analysisData.time_probabilities;
+            
+            // Extract time periods and probabilities
+            const timePeriods = Object.keys(timeData);
+            const probabilities = timePeriods.map(period => timeData[period]);
+            
+            // Create chart
+            this.probabilityTimeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: timePeriods.map(period => `${period} years`),
+                    datasets: [{
+                        label: 'Probability',
+                        data: probabilities,
+                        backgroundColor: probabilities.map(p => {
+                            if (p < 0.1) return 'rgba(40, 167, 69, 0.7)';
+                            if (p < 0.3) return 'rgba(255, 193, 7, 0.7)';
+                            if (p < 0.6) return 'rgba(255, 87, 34, 0.7)';
+                            return 'rgba(220, 53, 69, 0.7)';
+                        }),
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Probability'
+                            },
+                            max: 1,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value * 100) + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time Period'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Earthquake Probability by Time Period'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Probability: ${(context.raw * 100).toFixed(2)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error displaying probability by time chart:', error);
+        }
+    }
+
+    /**
+     * Display risk comparison chart
+     * @param {Object} analysisData - Analysis data containing regional comparison
+     */
+    displayRiskComparisonChart(analysisData) {
+        try {
+            const chartElement = document.getElementById('risk-comparison-chart');
+            if (!chartElement) {
+                console.error('Risk comparison chart element not found');
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (this.riskComparisonChart) {
+                this.riskComparisonChart.destroy();
+            }
+            
+            const ctx = chartElement.getContext('2d');
+            const comparisonData = analysisData.regional_comparison;
+            
+            // Extract regions and their risk levels
+            const regions = Object.keys(comparisonData);
+            const riskScores = regions.map(region => comparisonData[region]);
+            
+            // Create chart
+            this.riskComparisonChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: regions,
+                    datasets: [{
+                        label: 'Risk Score',
+                        data: riskScores,
+                        backgroundColor: regions.map((_, index) => {
+                            const score = riskScores[index];
+                            if (index === 0) return 'rgba(0, 123, 255, 0.8)'; // Highlight selected location
+                            if (score < 0.3) return 'rgba(40, 167, 69, 0.6)';
+                            if (score < 0.6) return 'rgba(255, 193, 7, 0.6)';
+                            return 'rgba(220, 53, 69, 0.6)';
+                        }),
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Risk Score'
+                            },
+                            max: 1
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Regional Risk Comparison'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const score = context.raw;
+                                    let riskText = 'Low Risk';
+                                    if (score >= 0.7) riskText = 'Very High Risk';
+                                    else if (score >= 0.5) riskText = 'High Risk';
+                                    else if (score >= 0.3) riskText = 'Moderate Risk';
+                                    return `${riskText} (Score: ${score.toFixed(2)})`;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error displaying risk comparison chart:', error);
+        }
+    }
+
+    /**
+     * Display advanced analysis results
+     * @param {Object} advancedData - Advanced analysis data
+     */
     displayAdvancedAnalysisResults(advancedData) {
-      // Display any advanced analysis visualizations
-      if (this.charts && advancedData) {
-          // Pass the data to charts class for display
-          if (advancedData.hazard_curve) {
-              this.charts.displayHazardCurve(advancedData.hazard_curve);
-          }
-          
-          // For OpenQuake results specifically
-          if (advancedData.openquake_results) {
-              // Additional charts can be implemented here
-              console.log("OpenQuake results available:", advancedData.openquake_results);
-          }
-      }
-  }
+        // Display any advanced analysis visualizations
+        if (advancedData) {
+            console.log("Processing advanced analysis data:", advancedData);
+            
+            // For OpenQuake results specifically
+            if (advancedData.openquake_results) {
+                console.log("OpenQuake results available:", advancedData.openquake_results);
+                
+                // Additional visualizations for OpenQuake results can be implemented here
+                // For example, displaying hazard disaggregation or spectral acceleration
+                if (advancedData.openquake_results.disaggregation) {
+                    // Implement disaggregation visualization
+                }
+                
+                if (advancedData.openquake_results.spectral_acceleration) {
+                    // Implement spectral acceleration curve
+                }
+            }
+            
+            // Handle any other advanced analysis visualizations
+            if (advancedData.vulnerability_assessment) {
+                this.displayVulnerabilityAssessment(advancedData.vulnerability_assessment);
+            }
+        }
+    }
+    
+    /**
+     * Display vulnerability assessment visualization
+     * @param {Object} vulnerabilityData - Vulnerability assessment data
+     */
+    displayVulnerabilityAssessment(vulnerabilityData) {
+        // Implementation for vulnerability assessment visualization
+        // This could include building fragility curves, damage probability matrices, etc.
+        console.log("Displaying vulnerability assessment data:", vulnerabilityData);
+        
+        // Implementation would depend on the specific data structure and requirements
+    }
+    
+    /**
+     * Export current analysis data to CSV
+     */
+    exportAnalysisToCSV() {
+        if (!this.hazardAnalysis.data) {
+            alert('No analysis data available to export.');
+            return;
+        }
+        
+        try {
+            // Prepare CSV data
+            let csvContent = 'data:text/csv;charset=utf-8,';
+            
+            // Add headers
+            csvContent += 'Parameter,Value\r\n';
+            
+            // Add coordinates
+            csvContent += `Latitude,${this.latitudeInput.value}\r\n`;
+            csvContent += `Longitude,${this.longitudeInput.value}\r\n`;
+            csvContent += `Radius (km),${this.radiusInput.value}\r\n`;
+            
+            // Add analysis results
+            const data = this.hazardAnalysis.data;
+            
+            if (data.probability !== undefined) {
+                csvContent += `Probability,${data.probability}\r\n`;
+            }
+            
+            if (data.risk_level) {
+                csvContent += `Risk Level,${data.risk_level}\r\n`;
+            }
+            
+            // Add time probabilities if available
+            if (data.time_probabilities) {
+                Object.entries(data.time_probabilities).forEach(([period, prob]) => {
+                    csvContent += `Probability (${period} years),${prob}\r\n`;
+                });
+            }
+            
+            // Create download link
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `earthquake_hazard_analysis_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            
+            // Trigger download
+            link.click();
+            
+            // Clean up
+            document.body.removeChild(link);
+            
+        } catch (error) {
+            console.error('Error exporting analysis to CSV:', error);
+            alert('Failed to export analysis data.');
+        }
+    }
+
+/**
+ * Perform earthquake prediction analysis
+ */
+async performPrediction() {
+    try {
+        // Get values from inputs
+        const latitude = parseFloat(this.latitudeInput.value);
+        const longitude = parseFloat(this.longitudeInput.value);
+        const timeHorizon = parseInt(this.predictionSettings.timeHorizon);
+        const intensityThreshold = parseFloat(this.predictionSettings.intensityThreshold);
+        
+        // Validate inputs
+        if (isNaN(latitude) || isNaN(longitude)) {
+            throw new Error('Please enter valid numbers for latitude and longitude.');
+        }
+        
+        if (latitude < -90 || latitude > 90) {
+            throw new Error('Latitude must be between -90 and 90 degrees.');
+        }
+        
+        if (longitude < -180 || longitude > 180) {
+            throw new Error('Longitude must be between -180 and 180 degrees.');
+        }
+        
+        // Set loading state
+        this.setPredictionLoading(true);
+        this.predictionStatusEl.textContent = 'Generating prediction...';
+        this.predictionStatusEl.className = 'text-info';
+        
+        // Call the prediction API
+        const response = await fetch(`${this.apiBaseUrl}/api/predict-earthquake`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                latitude: latitude,
+                longitude: longitude,
+                timeHorizon: timeHorizon,
+                intensityThreshold: intensityThreshold
+            })
+        });
+        
+        if (!response.ok) {
+            let errorData;
+try {
+    errorData = await response.json(); // Try to parse as JSON first
+} catch (e) {
+    errorData = await response.text(); // Fall back to text if not JSON
+}
+console.error('Server response error:', response.status, errorData);
+throw new Error(`Server error: ${response.status}. ${JSON.stringify(errorData)}`);
+        }
+        
+        // Process the prediction results
+        let predictionData;
+        try {
+            predictionData = await response.json();
+            if (typeof predictionData === 'string') {
+                predictionData = JSON.parse(predictionData);
+            }
+        } catch (e) {
+            console.error('Failed to parse prediction response:', e);
+            throw new Error('Invalid JSON response from server');
+        }
+        console.log("Prediction response data:", predictionData);
+        
+        // Validate response data
+        if (!predictionData || typeof predictionData !== 'object') {
+            throw new Error('Invalid response data received from server');
+        }
+        
+        // Store data and update UI
+        this.predictionResults = predictionData;
+        this.predictionError = null;
+        this.updatePredictionUI();
+        
+        // Update charts with the prediction data
+        this.updatePredictionCharts(predictionData);
+        
+        // Show the prediction area on the map if applicable
+        if (this.map && this.map.showPredictionArea && predictionData.prediction_zone) {
+            this.map.showPredictionArea(
+                latitude, 
+                longitude, 
+                predictionData.prediction_zone.radius || 100,
+                predictionData.prediction_probability
+            );
+        }
+        
+    } catch (error) {
+        console.error('Error performing earthquake prediction:', error);
+        this.predictionError = error.message || 'Failed to generate prediction';
+        this.predictionResults = null;
+        this.updatePredictionUI();
+    } finally {
+        this.setPredictionLoading(false);
+    }
 }
 
+/**
+ * Update prediction UI with results
+ */
+updatePredictionUI() {
+    if (this.predictionError) {
+        // Show error state
+        this.predictionStatusEl.textContent = this.predictionError;
+        this.predictionStatusEl.className = 'text-danger';
+        
+        // Clear previous results
+        this.predictionProbabilityEl.textContent = 'N/A';
+        this.predictionLikelihoodEl.textContent = 'N/A';
+        this.predictionLikelihoodEl.className = '';
+        this.predictionTimeframeEl.textContent = 'N/A';
+        
+    } else if (this.predictionResults) {
+        // Show success state with data details
+        const data = this.predictionResults;
+        
+        this.predictionStatusEl.textContent = 'Prediction complete';
+        this.predictionStatusEl.className = 'text-success';
+        
+        // Update probability - safely handle missing data
+        if (data.prediction_probability !== undefined) {
+            const probability = data.prediction_probability * 100;
+            this.predictionProbabilityEl.textContent = `${probability.toFixed(2)}%`;
+        } else {
+            this.predictionProbabilityEl.textContent = 'N/A';
+        }
+        
+        // Update likelihood level with color coding
+        const likelihood = data.likelihood_level;
+        
+        if (likelihood && typeof likelihood === 'string') {
+            this.predictionLikelihoodEl.textContent = likelihood;
+            
+            // Add color class based on likelihood level
+            this.predictionLikelihoodEl.className = '';
+            switch (likelihood.toLowerCase()) {
+                case 'very low':
+                    this.predictionLikelihoodEl.className = 'text-success';
+                    break;
+                case 'low':
+                    this.predictionLikelihoodEl.className = 'text-info';
+                    break;
+                case 'moderate':
+                    this.predictionLikelihoodEl.className = 'text-warning';
+                    break;
+                case 'high':
+                    this.predictionLikelihoodEl.className = 'text-danger';
+                    break;
+                case 'very high':
+                    this.predictionLikelihoodEl.className = 'text-danger font-weight-bold';
+                    break;
+                default:
+                    this.predictionLikelihoodEl.className = 'text-secondary';
+                    break;
+            }
+        } else {
+            this.predictionLikelihoodEl.textContent = 'Unknown';
+            this.predictionLikelihoodEl.className = 'text-secondary';
+        }
+        
+        // Update timeframe
+        if (data.prediction_timeframe) {
+            this.predictionTimeframeEl.textContent = data.prediction_timeframe;
+        } else if (data.time_horizon) {
+            this.predictionTimeframeEl.textContent = `Next ${data.time_horizon} days`;
+        } else {
+            this.predictionTimeframeEl.textContent = `Next ${this.predictionSettings.timeHorizon} days`;
+        }
+        
+        // Show confidence interval if available
+        if (data.confidence_interval) {
+            document.getElementById('prediction-confidence').textContent = 
+                `${data.confidence_interval.lower * 100}% - ${data.confidence_interval.upper * 100}%`;
+            document.getElementById('prediction-confidence-container').classList.remove('d-none');
+        } else {
+            document.getElementById('prediction-confidence-container').classList.add('d-none');
+        }
+        
+        // Show expected magnitude if available
+        if (data.expected_magnitude) {
+            document.getElementById('prediction-magnitude').textContent = 
+                data.expected_magnitude.toFixed(1);
+            document.getElementById('prediction-magnitude-container').classList.remove('d-none');
+        } else {
+            document.getElementById('prediction-magnitude-container').classList.add('d-none');
+        }
+    }
+}
 
+/**
+ * Set loading state for prediction
+ * @param {boolean} isLoading - Whether prediction is loading
+ */
+setPredictionLoading(isLoading) {
+    if (isLoading) {
+        this.predictButton.disabled = true;
+        this.predictButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Predicting...';
+    } else {
+        this.predictButton.disabled = false;
+        this.predictButton.textContent = 'Generate Prediction';
+    }
+}
 
-// Initialize the app once DOM is fully loaded
-document.addEventListener('DOMContentLoaded', () => {
-    const app = new EarthquakeApp();
-});
+/**
+ * Update prediction charts with new data
+ * @param {Object} predictionData - Prediction results from API
+ */
+updatePredictionCharts(predictionData) {
+    // Only proceed if we have valid data
+    if (!predictionData) {
+        console.error('Cannot update prediction charts: missing data');
+        return;
+    }
+    
+    try {
+        // Update probability timeline chart if data available
+        if (predictionData.probability_timeline) {
+            this.displayProbabilityTimelineChart(predictionData.probability_timeline);
+        } else if (predictionData.prediction_probability) {
+            // Generate simple timeline based on single probability value
+            const timeHorizon = predictionData.time_horizon || this.predictionSettings.timeHorizon;
+            const timeline = {};
+            
+            // Create an artificial timeline that grows towards the predicted probability
+            for (let i = 1; i <= timeHorizon; i++) {
+                // Exponential growth towards the final probability
+                const factor = Math.pow(i / timeHorizon, 1.5);
+                timeline[i] = predictionData.prediction_probability * factor;
+            }
+            
+            this.displayProbabilityTimelineChart({ days: timeline });
+        }
+        
+        // Update historical patterns chart if available
+        if (predictionData.historical_patterns) {
+            this.displayHistoricalPatternsChart(predictionData.historical_patterns);
+        }
+        
+        // Update factor contribution chart if available
+        if (predictionData.contributing_factors) {
+            this.displayFactorContributionChart(predictionData.contributing_factors);
+        }
+        
+    } catch (error) {
+        console.error('Error updating prediction charts:', error);
+    }
+}
+
+/**
+ * Display probability timeline chart
+ * @param {Object} timelineData - Timeline data with days as keys and probabilities as values
+ */
+displayProbabilityTimelineChart(timelineData) {
+    try {
+        const chartElement = document.getElementById('prediction-timeline-chart');
+        if (!chartElement) {
+            console.error('Prediction timeline chart element not found');
+            return;
+        }
+        
+        // Destroy existing chart if it exists
+        if (this.predictionTimelineChart) {
+            this.predictionTimelineChart.destroy();
+        }
+        
+        const ctx = chartElement.getContext('2d');
+        
+        // Extract days and probabilities
+        let labels, data;
+        
+        if (timelineData.days) {
+            // Format where timeline is an object with days as keys
+            labels = Object.keys(timelineData.days);
+            data = labels.map(day => timelineData.days[day]);
+        } else {
+            // Format where timeline is an array of objects with day and probability
+            labels = timelineData.map(item => `Day ${item.day}`);
+            data = timelineData.map(item => item.probability);
+        }
+        
+        // Create gradient for fill
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(255, 99, 132, 0.8)');
+        gradient.addColorStop(1, 'rgba(255, 99, 132, 0.1)');
+        
+        // Create new chart
+        this.predictionTimelineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Earthquake Probability',
+                    data: data,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: gradient,
+                    pointRadius: 4,
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Prediction Probability Timeline'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Probability: ${(context.raw * 100).toFixed(2)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Days from Now'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Probability'
+                        },
+                        min: 0,
+                        max: 1,
+                        ticks: {
+                            callback: function(value) {
+                                return (value * 100) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error displaying probability timeline chart:', error);
+    }
+}
+
+/**
+ * Display historical patterns chart
+ * @param {Object} historicalData - Historical earthquake patterns data
+ */
+displayHistoricalPatternsChart(historicalData) {
+    try {
+        const chartElement = document.getElementById('historical-patterns-chart');
+        if (!chartElement) {
+            console.error('Historical patterns chart element not found');
+            return;
+        }
+        
+        // Destroy existing chart if it exists
+        if (this.historicalPatternsChart) {
+            this.historicalPatternsChart.destroy();
+        }
+        
+        const ctx = chartElement.getContext('2d');
+        
+        // Prepare data for chart based on structure
+        let labels, counts, averageMagnitudes;
+        
+        if (Array.isArray(historicalData)) {
+            // Array of objects with period and count
+            labels = historicalData.map(item => item.period);
+            counts = historicalData.map(item => item.count);
+            averageMagnitudes = historicalData.map(item => item.avg_magnitude || 0);
+        } else {
+            // Object with periods as keys
+            labels = Object.keys(historicalData);
+            counts = labels.map(period => historicalData[period].count || 0);
+            averageMagnitudes = labels.map(period => historicalData[period].avg_magnitude || 0);
+        }
+        
+        // Create new chart
+        this.historicalPatternsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Earthquake Count',
+                        data: counts,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Average Magnitude',
+                        data: averageMagnitudes,
+                        type: 'line',
+                        backgroundColor: 'rgba(255, 99, 132, 0.3)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Historical Earthquake Patterns'
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Earthquake Count'
+                        },
+                        min: 0
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Average Magnitude'
+                        },
+                        min: 0,
+                        max: 10,
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error displaying historical patterns chart:', error);
+    }
+}
+
+/**
+ * Display factor contribution chart
+ * @param {Object} factorsData - Contributing factors data
+ */
+displayFactorContributionChart(factorsData) {
+    try {
+        const chartElement = document.getElementById('factor-contribution-chart');
+        if (!chartElement) {
+            console.error('Factor contribution chart element not found');
+            return;
+        }
+        
+        // Destroy existing chart if it exists
+        if (this.factorContributionChart) {
+            this.factorContributionChart.destroy();
+        }
+        
+        const ctx = chartElement.getContext('2d');
+        
+        // Prepare data for chart
+        let labels, values;
+        
+        if (Array.isArray(factorsData)) {
+            // Array of objects with factor and contribution
+            labels = factorsData.map(item => item.factor);
+            values = factorsData.map(item => item.contribution);
+        } else {
+            // Object with factors as keys
+            labels = Object.keys(factorsData);
+            values = labels.map(factor => factorsData[factor]);
+        }
+        
+        // Create new chart
+        this.factorContributionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)',
+                        'rgba(153, 102, 255, 0.7)',
+                        'rgba(255, 159, 64, 0.7)'
+                    ],
+                    borderColor: 'rgba(255, 255, 255, 0.8)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Contributing Factors to Prediction'
+                    },
+                    legend: {
+                        position: 'right'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.raw;
+                                const percentage = (value * 100).toFixed(1);
+                                return `${context.label}: ${percentage}%`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error displaying factor contribution chart:', error);
+    }
+}
+
+}
+   
+    // Initialize the application when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const app = new EarthquakeApp();
+        
+        // Make app available globally for debugging if needed
+        window.EarthquakeMonitor = app;
+    });
