@@ -2,6 +2,7 @@ import os
 import tempfile
 import json
 from openquake.hazardlib import geo, const, imt
+from openquake.hazardlib.site import Site, SiteCollection  # Fixed import for Site class
 from openquake.hazardlib.calc import hazard_curve, filters
 from openquake.hazardlib.source import PointSource
 from openquake.hazardlib.sourceconverter import SourceConverter
@@ -13,7 +14,6 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import math
-
 # Current function from existing application, keep for compatibility
 def perform_hazard_analysis(earthquakes, lat, lon, radius=300):
     """
@@ -147,37 +147,97 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     distance = c * r
     return distance
 
-# New functions using OpenQuake
+def calculate_risk_score(levels, poes):
+    """
+    Calculate a simplified seismic risk score from hazard curve data
+    
+    Args:
+        levels (list): Ground motion levels
+        poes (list): Probabilities of exceedance for each level
+        
+    Returns:
+        float: Risk score (0-100)
+    """
+    import numpy as np
+    
+    # Simple weighted average of exceedance probabilities
+    if not levels or not poes or len(levels) != len(poes):
+        return 0.0
+    
+    # Focus on moderate to high ground motion levels
+    # Normalize levels to 0-1 scale to create weights
+    max_level = max(levels)
+    weights = [min(level/max_level * 5, 1.0) for level in levels]
+    
+    # Calculate weighted average of probabilities
+    weighted_sum = sum(p * w for p, w in zip(poes, weights))
+    weight_sum = sum(weights)
+    
+    if weight_sum == 0:
+        return 0.0
+        
+    # Scale to 0-100
+    risk_score = min(100, weighted_sum / weight_sum * 1000)
+    
+    return round(risk_score, 2)
 
-def create_point_source(latitude, longitude, a_val=4.5):
-    """Create a simple point source for a given location"""
-    # Define a point source at the given coordinates
-    point_source = PointSource(
-        source_id='POINT_1',
-        name='Example Point Source',
+
+def create_point_source(latitude, longitude, a_val, b_val=0.9, min_mag=4.0, max_mag=7.5):
+    """
+    Create a point source for OpenQuake hazard analysis
+    
+    Args:
+        latitude (float): Source latitude
+        longitude (float): Source longitude
+        a_val (float): a-value for Gutenberg-Richter relationship
+        b_val (float): b-value for Gutenberg-Richter relationship
+        min_mag (float): Minimum magnitude
+        max_mag (float): Maximum magnitude
+        
+    Returns:
+        PointSource: OpenQuake point source object
+    """
+    from openquake.hazardlib import geo, const
+    from openquake.hazardlib.source import PointSource
+    from openquake.hazardlib.scalerel.wc1994 import WC1994
+    from openquake.hazardlib.mfd.truncated_gr import TruncatedGRMFD
+    from openquake.hazardlib.geo.nodalplane import NodalPlane
+    from openquake.hazardlib.pmf import PMF
+    
+    # Create magnitude frequency distribution
+    mfd = TruncatedGRMFD(
+        min_mag=min_mag,
+        max_mag=max_mag,
+        bin_width=0.1,
+        a_val=a_val,
+        b_val=b_val
+    )
+    
+    # Define a single nodal plane with 100% probability
+    nodal_plane = NodalPlane(strike=0.0, dip=90.0, rake=0.0)
+    nodal_plane_dist = PMF([(1.0, nodal_plane)])  # 100% probability for this nodal plane
+    
+    # Define hypocenter depth distribution
+    hypo_depth_dist = PMF([(0.5, 5.0), (0.5, 15.0)])  # 50% at 5km, 50% at 15km depth
+    
+    # Create point source
+    source = PointSource(
+        source_id='POINT_SOURCE',
+        name='Simple Point Source',
         tectonic_region_type='Active Shallow Crust',
-        mfd=TruncatedGRMFD(
-            a_val=a_val,  # Activity rate (events per year)
-            b_val=1.0,  # b-value of the Gutenberg-Richter relation
-            min_mag=5.0,  # Minimum magnitude
-            max_mag=7.5,  # Maximum magnitude
-            bin_width=0.1  # Width of the magnitude bin
-        ),
-        nodal_plane_distribution=geo.NodalPlane.as_probability_distribution(
-            [(1.0, geo.NodalPlane(strike=0.0, dip=90.0, rake=0.0))]
-        ),
-        hypocenter_distribution=geo.HypocenterDepthDistribution(
-            [(0.5, 5.0), (0.5, 10.0)]  # (probability, depth)
-        ),
-        upper_seismogenic_depth=0.0,  # km
-        lower_seismogenic_depth=30.0,  # km
+        mfd=mfd,
+        rupture_mesh_spacing=2.0,
         magnitude_scaling_relationship=WC1994(),
         rupture_aspect_ratio=1.0,
         temporal_occurrence_model=None,  # Use default Poissonian model
-        location=geo.Point(longitude, latitude)
+        upper_seismogenic_depth=0.0,
+        lower_seismogenic_depth=30.0,
+        location=geo.Point(longitude, latitude),
+        nodal_plane_distribution=nodal_plane_dist,
+        hypocenter_distribution=hypo_depth_dist
     )
-    return point_source
-
+    
+    return source
 def estimate_seismicity_param(earthquakes, lat, lon, radius=300):
     """
     Estimate seismicity parameters based on historical earthquake data
@@ -245,38 +305,38 @@ def estimate_seismicity_param(earthquakes, lat, lon, radius=300):
 def perform_openquake_hazard_analysis(latitude, longitude, earthquakes=None, intensity_measure_type='PGA'):
     """
     Perform a basic seismic hazard analysis for the given coordinates using OpenQuake
-    
+   
     Args:
         latitude (float): Site latitude
         longitude (float): Site longitude
         earthquakes (dict, optional): Dictionary containing earthquake data
         intensity_measure_type (str): Type of intensity measure (default: PGA)
-        
+       
     Returns:
         dict: Hazard analysis results
     """
     try:
         # Create a site collection with a single site
-        site = geo.Site(
+        site = Site(
             location=geo.Point(longitude, latitude),
             vs30=760.0,  # Default value for rock site in m/s
             vs30measured=False,
             z1pt0=100.0,  # Depth to Vs=1.0 km/s
             z2pt5=5.0,    # Depth to Vs=2.5 km/s
         )
-        sites = geo.SiteCollection([site])
-        
+        sites = SiteCollection([site])
+       
         # Estimate a-value if we have earthquake data
         a_val = 4.5  # Default
         if earthquakes:
             a_val = estimate_seismicity_param(earthquakes, latitude, longitude)
-        
+       
         # Create a source model with a point source
         source = create_point_source(latitude, longitude, a_val)
-        
+       
         # Set up the ground motion model (GMPE)
         gsim = BooreAtkinson2008()
-        
+       
         # Define intensity measure type and levels
         if intensity_measure_type == 'PGA':
             imtls = {imt.PGA(): [0.005, 0.007, 0.0098, 0.0137, 0.0192, 0.0269, 0.0376, 0.0527, 0.0738, 0.103, 0.145, 0.203, 0.284, 0.397, 0.556, 0.778, 1.09, 1.52, 2.13]}
@@ -284,31 +344,31 @@ def perform_openquake_hazard_analysis(latitude, longitude, earthquakes=None, int
             imtls = {imt.SA(1.0): [0.005, 0.007, 0.0098, 0.0137, 0.0192, 0.0269, 0.0376, 0.0527, 0.0738, 0.103, 0.145, 0.203, 0.284, 0.397, 0.556, 0.778, 1.09, 1.52, 2.13]}
         else:
             raise ValueError(f"Unsupported intensity measure type: {intensity_measure_type}")
-        
+       
         # Calculate hazard curves
         ctx_provider = filters.ContextMaker(
             trt_rlzs=[(source.tectonic_region_type, gsim)],
             src_filter=filters.SourceFilter(sites, 200)  # 200 km maximum distance
         )
-        
+       
         curves = hazard_curve.calc_hazard_curves(
             [source], ctx_provider, imtls
         )
-        
+       
         # Process results for JSON response
         result = {}
         for imt_key, curve in curves.items():
             # Convert numpy arrays to lists for JSON serialization
             levels = [float(level) for level in imtls[imt_key]]
             poes = [float(poe) for poe in curve[0]]  # First site
-            
+           
             result[str(imt_key)] = {
                 'levels': levels,
                 'poes': poes,
                 # Calculate risk scores (simplified example)
                 'risk_score': calculate_risk_score(levels, poes)
             }
-        
+       
         return {
             'status': 'success',
             'site': {'latitude': latitude, 'longitude': longitude},
@@ -319,13 +379,12 @@ def perform_openquake_hazard_analysis(latitude, longitude, earthquakes=None, int
                 'a_value': a_val
             }
         }
-    
+   
     except Exception as e:
         return {
             'status': 'error',
             'message': str(e)
         }
-
 def calculate_risk_score(levels, poes):
     """
     Calculate a simplified risk score based on hazard curves

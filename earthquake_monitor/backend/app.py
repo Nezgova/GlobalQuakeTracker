@@ -147,7 +147,7 @@ def analyze_earthquakes():
             )
         
         # Add the analysis type to the results
-        analysis_results['analysis_type'] = analysis_type
+        analysis_results['analysis_type'] = analysis_type.lower()
         
         return jsonify(analysis_results)
     except Exception as e:
@@ -256,59 +256,138 @@ def generate_earthquake_report():
         # Handle min magnitude
         min_magnitude = data.get('minMagnitude', 1.0)
         
-        # New parameter for analysis type
+        # Analysis type and report format options
         analysis_type = data.get('analysisType', 'standard')
+        include_interactive_map = data.get('includeInteractiveMap', True)
         
+        # Validate required parameters
         if not lat or not lon:
             return jsonify({"error": "Latitude and longitude are required"}), 400
+            
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            radius = float(radius)
+            days = float(days)
+            min_magnitude = float(min_magnitude)
+        except ValueError:
+            return jsonify({"error": "Invalid parameter values. Numeric values expected for lat, lon, radius, days, and min_magnitude"}), 400
         
-        # Get the currently filtered data or use default parameters
-        if earthquake_cache["filtered_data"] is None:
-            earthquakes = process_earthquake_data(
-                earthquake_cache["data"],
-                days_ago=float(days),
-                min_magnitude=float(min_magnitude)
-            )
+        # Check data availability
+        if earthquake_cache["data"] is None:
+            return jsonify({"error": "No earthquake data available. Please try again later."}), 503
+        
+        # Get the currently filtered data or use parameters to filter data
+        if earthquake_cache["filtered_data"] is None or data.get('useCustomFilters', True):
+            try:
+                earthquakes = process_earthquake_data(
+                    earthquake_cache["data"],
+                    days_ago=days,
+                    min_magnitude=min_magnitude
+                )
+            except Exception as e:
+                print(f"Error processing earthquake data: {str(e)}")
+                return jsonify({"error": f"Failed to process earthquake data: {str(e)}"}), 500
         else:
             earthquakes = earthquake_cache["filtered_data"]
         
+        # Check if we have sufficient earthquake data
+        if not earthquakes or (isinstance(earthquakes, list) and len(earthquakes) == 0):
+            return jsonify({
+                "error": "No earthquake data found for the specified parameters",
+                "suggestion": "Try increasing the time period or decreasing the minimum magnitude"
+            }), 404
+        
         # Perform analysis based on type
-        if analysis_type == 'advanced':
-            # Use OpenQuake analysis
-            standard_analysis = perform_hazard_analysis(
-                earthquakes, float(lat), float(lon), float(radius)
-            )
-            advanced_analysis = perform_openquake_hazard_analysis(
-                float(lat), float(lon), earthquakes
-            )
-            # Combine analyses
-            analysis_results = {
-                **standard_analysis,
-                'advanced_analysis': advanced_analysis
+        try:
+            if analysis_type == 'advanced':
+                # Use OpenQuake analysis
+                standard_analysis = perform_hazard_analysis(
+                    earthquakes, lat, lon, radius
+                )
+                advanced_analysis = perform_openquake_hazard_analysis(
+                    lat, lon, earthquakes
+                )
+                # Combine analyses
+                analysis_results = {
+                    **standard_analysis,
+                    'advanced_analysis': advanced_analysis
+                }
+            else:
+                # Use standard analysis
+                analysis_results = perform_hazard_analysis(
+                    earthquakes, lat, lon, radius
+                )
+        except Exception as e:
+            print(f"Error performing hazard analysis: {str(e)}")
+            return jsonify({"error": f"Failed to perform hazard analysis: {str(e)}"}), 500
+        
+        # Generate additional report metadata
+        report_metadata = {
+            "report_id": f"EQ_REPORT_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "timestamp": datetime.now().isoformat(),
+            "parameters": {
+                "latitude": lat,
+                "longitude": lon,
+                "radius_km": radius,
+                "days": days,
+                "min_magnitude": min_magnitude,
+                "analysis_type": analysis_type
             }
-        else:
-            # Use standard analysis
-            analysis_results = perform_hazard_analysis(
-                earthquakes, float(lat), float(lon), float(radius)
-            )
+        }
         
         # Generate PDF report
-        pdf_path = generate_report(
-            earthquakes, 
-            analysis_results, 
-            title, 
-            float(lat), 
-            float(lon), 
-            float(radius),
-            analysis_type=analysis_type
-        )
+        try:
+            pdf_path = generate_report(
+                earthquakes, 
+                analysis_results, 
+                title, 
+                lat, 
+                lon, 
+                radius,
+                analysis_type=analysis_type
+            )
+        except Exception as e:
+            print(f"Error generating report: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
         
         # Return PDF file
-        return send_file(pdf_path, as_attachment=True, download_name="earthquake_report.pdf")
+        response = send_file(
+            pdf_path, 
+            as_attachment=True, 
+            download_name=f"earthquake_report_{lat:.2f}_{lon:.2f}.pdf"
+        )
+        
+        # Add report metadata headers
+        response.headers['Report-ID'] = report_metadata['report_id']
+        response.headers['Report-Timestamp'] = report_metadata['timestamp']
+        
+        # Clean up temporary files after a delay
+        def cleanup_files():
+            import time
+            time.sleep(300)  # Wait 5 minutes before cleanup
+            try:
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+                # Remove the interactive map file if it exists
+                map_file = 'earthquake_map.html'
+                if os.path.exists(map_file):
+                    os.remove(map_file)
+            except Exception as e:
+                print(f"Error cleaning up temporary files: {str(e)}")
+        
+        # Start cleanup thread
+        cleanup_thread = threading.Thread(target=cleanup_files, daemon=True)
+        cleanup_thread.start()
+        
+        return response
     except Exception as e:
         print(f"Error in generate_earthquake_report: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
-
 @app.route('/api/status', methods=['GET'])
 def get_status():
     try:
