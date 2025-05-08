@@ -80,226 +80,253 @@ def generate_basic_report(earthquakes, analysis_results, title, center_lat, cent
     Returns:
         str: Path to generated PDF file
     """
-    # Create a temporary file for the PDF
-    temp_dir = tempfile.gettempdir()
-    file_name = f"earthquake_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    file_path = os.path.join(temp_dir, file_name)
-    
-    # Create the PDF document
-    doc = SimpleDocTemplate(
-        file_path,
-        pagesize=letter,
-        rightMargin=0.5*inch,
-        leftMargin=0.5*inch,
-        topMargin=0.5*inch,
-        bottomMargin=0.5*inch
-    )
-    
-    # Define styles
-    styles = getSampleStyleSheet()
-    title_style = styles['Title']
-    heading_style = styles['Heading1']
-    heading2_style = styles['Heading2']
-    normal_style = styles['Normal']
-    
-    # Custom styles
-    styles.add(ParagraphStyle(
-        name='SmallText',
-        parent=styles['Normal'],
-        fontSize=8
-    ))
-    
-    # Create document content
-    content = []
-    
-    # Add title
-    content.append(Paragraph(title, title_style))
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add report generation info
-    report_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    content.append(Paragraph(f"Report Generated: {report_date}", styles['SmallText']))
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add location information
-    content.append(Paragraph("Analysis Location", heading_style))
-    location_data = [
-        ["Latitude:", f"{center_lat:.4f}°"],
-        ["Longitude:", f"{center_lon:.4f}°"],
-        ["Analysis Radius:", f"{radius_km} km"]
-    ]
-    location_table = Table(location_data, colWidths=[2*inch, 2*inch])
-    location_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-        ('PADDING', (0, 0), (-1, -1), 6),
-    ]))
-    content.append(location_table)
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add earthquake statistics
-    content.append(Paragraph("Earthquake Statistics", heading_style))
-    
-    # Extract data from analysis
-    nearby_quakes = analysis_results.get("nearby_earthquakes", [])
-    mag_distribution = analysis_results.get("magnitude_distribution", {})
-    time_stats = analysis_results.get("time_statistics", {})
-    
-    quake_count = len(nearby_quakes)
-    
-    # Add key metrics from analysis
-    content.append(Paragraph("Recent Seismic Activity", heading2_style))
-    
-    time_data = [
-        ["Time Period", "Number of Earthquakes"],
-        ["Last 24 Hours", str(time_stats.get("last_24h", 0))],
-        ["Last 7 Days", str(time_stats.get("last_7d", 0))],
-        ["Last 30 Days", str(time_stats.get("last_30d", 0))],
-        ["Total in Analysis", str(quake_count)]
-    ]
-    
-    time_table = Table(time_data, colWidths=[2*inch, 2*inch])
-    time_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-        ('PADDING', (0, 0), (-1, -1), 6),
-    ]))
-    content.append(time_table)
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add magnitude distribution
-    content.append(Paragraph("Magnitude Distribution", heading2_style))
-    
-    mag_data = [
-        ["Magnitude Range", "Number of Earthquakes"]
-    ]
-    
-    for mag_range, count in mag_distribution.items():
-        mag_data.append([mag_range, str(count)])
-    
-    mag_table = Table(mag_data, colWidths=[2*inch, 2*inch])
-    mag_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-        ('PADDING', (0, 0), (-1, -1), 6),
-    ]))
-    content.append(mag_table)
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add magnitude distribution chart if we have enough data
-    if len(earthquakes.get("features", [])) >= 3:
-        content.append(Paragraph("Earthquake Magnitude Distribution", heading_style))
+    try:
+        # Create a temporary file for the PDF
+        temp_dir = tempfile.gettempdir()
+        file_name = f"earthquake_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        file_path = os.path.join(temp_dir, file_name)
         
-        # Generate magnitude distribution chart
-        magnitude_chart = create_magnitude_chart(earthquakes)
-        content.append(magnitude_chart)
+        # Create the PDF document
+        doc = SimpleDocTemplate(
+            file_path,
+            pagesize=letter,
+            rightMargin=0.5*inch,
+            leftMargin=0.5*inch,
+            topMargin=0.5*inch,
+            bottomMargin=0.5*inch
+        )
+        
+        # Define styles
+        styles = getSampleStyleSheet()
+        title_style = styles['Title']
+        heading_style = styles['Heading1']
+        heading2_style = styles['Heading2']
+        normal_style = styles['Normal']
+        
+        # Custom styles
+        styles.add(ParagraphStyle(
+            name='SmallText',
+            parent=styles['Normal'],
+            fontSize=8
+        ))
+        
+        # Create document content
+        content = []
+        
+        # Add title
+        content.append(Paragraph(title, title_style))
         content.append(Spacer(1, 0.25*inch))
-    
-    # Create a new page for earthquake details
-    content.append(PageBreak())
-    
-    # Add nearest earthquakes list
-    content.append(Paragraph("Nearest Earthquakes", heading_style))
-    
-    if nearby_quakes:
-        quake_data = [["Magnitude", "Depth (km)", "Distance (km)", "Date", "Location"]]
-        for quake in nearby_quakes[:10]:  # Limit to 10 earthquakes
-            props = quake.get("properties", {})
-            quake_data.append([
-                str(props.get("mag", "N/A")),
-                str(props.get("depth", "N/A") if "depth" in props else 
-                    (quake["geometry"]["coordinates"][2] if len(quake["geometry"]["coordinates"]) > 2 else "N/A")),
-                str(props.get("distance", "N/A")),
-                datetime.fromtimestamp(props.get("time", 0) / 1000).strftime("%Y-%m-%d"),
-                props.get("place", "Unknown")
-            ])
         
-        quakes_table = Table(quake_data, colWidths=[0.7*inch, 0.8*inch, 1*inch, 1*inch, 3*inch])
-        quakes_table.setStyle(TableStyle([
+        # Add report generation info
+        report_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        content.append(Paragraph(f"Report Generated: {report_date}", styles['SmallText']))
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add location information
+        content.append(Paragraph("Analysis Location", heading_style))
+        location_data = [
+            ["Latitude:", f"{center_lat:.4f}°"],
+            ["Longitude:", f"{center_lon:.4f}°"],
+            ["Analysis Radius:", f"{radius_km} km"]
+        ]
+        location_table = Table(location_data, colWidths=[2*inch, 2*inch])
+        location_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
+        content.append(location_table)
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add earthquake statistics - with proper type checking
+        content.append(Paragraph("Earthquake Statistics", heading_style))
+        
+        # Safely extract data from analysis with defaults
+        nearby_quakes = analysis_results.get("nearby_earthquakes", [])
+        if not isinstance(nearby_quakes, (list, tuple)):
+            nearby_quakes = []
+            
+        mag_distribution = analysis_results.get("magnitude_distribution", {})
+        if not isinstance(mag_distribution, dict):
+            mag_distribution = {}
+            
+        time_stats = analysis_results.get("time_statistics", {})
+        if not isinstance(time_stats, dict):
+            time_stats = {}
+        
+        quake_count = len(nearby_quakes)
+        
+        # Add key metrics from analysis
+        content.append(Paragraph("Recent Seismic Activity", heading2_style))
+        
+        time_data = [
+            ["Time Period", "Number of Earthquakes"],
+            ["Last 24 Hours", str(time_stats.get("last_24h", 0))],
+            ["Last 7 Days", str(time_stats.get("last_7d", 0))],
+            ["Last 30 Days", str(time_stats.get("last_30d", 0))],
+            ["Total in Analysis", str(quake_count)]
+        ]
+        
+        time_table = Table(time_data, colWidths=[2*inch, 2*inch])
+        time_table.setStyle(TableStyle([
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('PADDING', (0, 0), (-1, -1), 4),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('PADDING', (0, 0), (-1, -1), 6),
         ]))
-        content.append(quakes_table)
-    else:
-        content.append(Paragraph("No nearby earthquakes found.", normal_style))
+        content.append(time_table)
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add magnitude distribution - with proper type checking
+        content.append(Paragraph("Magnitude Distribution", heading2_style))
+        
+        mag_data = [["Magnitude Range", "Number of Earthquakes"]]
+        
+        if isinstance(mag_distribution, dict):
+            for mag_range, count in mag_distribution.items():
+                mag_data.append([str(mag_range), str(count)])
+        
+        mag_table = Table(mag_data, colWidths=[2*inch, 2*inch])
+        mag_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
+        content.append(mag_table)
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add magnitude distribution chart if we have enough data
+        features = earthquakes.get("features", [])
+        if isinstance(features, (list, tuple)) and len(features) >= 3:
+            content.append(Paragraph("Earthquake Magnitude Distribution", heading_style))
+            
+            # Generate magnitude distribution chart
+            try:
+                magnitude_chart = create_magnitude_chart(earthquakes)
+                content.append(magnitude_chart)
+                content.append(Spacer(1, 0.25*inch))
+            except Exception as e:
+                print(f"Error creating magnitude chart: {str(e)}")
+                content.append(Paragraph("Could not generate magnitude distribution chart", normal_style))
+        
+        # Create a new page for earthquake details
+        content.append(PageBreak())
+        
+        # Add nearest earthquakes list with proper type checking
+        content.append(Paragraph("Nearest Earthquakes", heading_style))
+        
+        if nearby_quakes and isinstance(nearby_quakes, (list, tuple)):
+            quake_data = [["Magnitude", "Depth (km)", "Distance (km)", "Date", "Location"]]
+            for quake in nearby_quakes[:10]:  # Limit to 10 earthquakes
+                try:
+                    props = quake.get("properties", {})
+                    geometry = quake.get("geometry", {})
+                    coords = geometry.get("coordinates", [0, 0, 0])
+                    
+                    quake_data.append([
+                        str(props.get("mag", "N/A")),
+                        str(props.get("depth", "N/A") if "depth" in props else 
+                            (coords[2] if len(coords) > 2 else "N/A")),
+                        str(props.get("distance", "N/A")),
+                        datetime.fromtimestamp(props.get("time", 0) / 1000).strftime("%Y-%m-%d") if props.get("time") else "N/A",
+                        props.get("place", "Unknown")
+                    ])
+                except Exception as e:
+                    print(f"Error processing earthquake data: {str(e)}")
+                    continue
+            
+            quakes_table = Table(quake_data, colWidths=[0.7*inch, 0.8*inch, 1*inch, 1*inch, 3*inch])
+            quakes_table.setStyle(TableStyle([
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('PADDING', (0, 0), (-1, -1), 4),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ]))
+            content.append(quakes_table)
+        else:
+            content.append(Paragraph("No nearby earthquakes found.", normal_style))
+        
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add risk assessment
+        content.append(Paragraph("Risk Assessment", heading_style))
+        
+        # Determine risk level based on magnitude and proximity
+        risk_level = "Low"
+        risk_color = colors.green
+        
+        # Check for significant earthquakes nearby with proper type checking
+        if isinstance(nearby_quakes, (list, tuple)):
+            significant_quakes = [q for q in nearby_quakes if isinstance(q, dict) and 
+                                q.get("properties", {}).get("mag", 0) >= 5.0]
+            close_quakes = [q for q in nearby_quakes if isinstance(q, dict) and 
+                           q.get("properties", {}).get("distance", float('inf')) <= 100]
+            
+            if any(q for q in nearby_quakes if isinstance(q, dict) and 
+                  q.get("properties", {}).get("mag", 0) >= 7.0):
+                risk_level = "High"
+                risk_color = colors.red
+            elif significant_quakes and close_quakes:
+                risk_level = "Moderate"
+                risk_color = colors.orange
+        
+        risk_style = ParagraphStyle(
+            name='RiskText',
+            parent=styles['Normal'],
+            textColor=risk_color,
+            fontName='Helvetica-Bold'
+        )
+        
+        content.append(Paragraph(f"Based on historical earthquake data, this location has a {risk_level.upper()} seismic risk.", risk_style))
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add recommendations based on risk level
+        content.append(Paragraph("Recommendations:", heading2_style))
+        
+        if risk_level == "High":
+            recommendations = [
+                "Consider professional assessment of building safety and potential retrofitting needs.",
+                "Develop a detailed family emergency and communication plan.",
+                "Prepare a comprehensive emergency kit for at least 72 hours of self-sufficiency.",
+                "Consider earthquake insurance coverage.",
+                "Stay informed about local seismic hazards and preparedness measures."
+            ]
+        elif risk_level == "Moderate":
+            recommendations = [
+                "Review and practice earthquake safety procedures with all household members.",
+                "Check home for potential hazards and consider basic retrofitting if needed.",
+                "Prepare a more comprehensive emergency kit.",
+                "Stay informed about local seismic hazards and preparedness measures."
+            ]
+        else:  # Low
+            recommendations = [
+                "Implement basic earthquake preparedness despite low hazard.",
+                "Consider a basic emergency kit with water, food, and first aid supplies.",
+                "Stay informed about local seismic hazards and preparedness measures."
+            ]
+        
+        for rec in recommendations:
+            content.append(Paragraph(f"• {rec}", normal_style))
+            content.append(Spacer(1, 0.1*inch))
+        
+        content.append(Spacer(1, 0.25*inch))
+        
+        # Add disclaimer
+        content.append(Paragraph("Disclaimer", heading2_style))
+        disclaimer_text = (
+            "This report provides an assessment based on historical earthquake data. While it provides valuable insights, "
+            "it should not be the sole basis for critical infrastructure or life-safety decisions. For such applications, "
+            "please consult with qualified seismic hazard experts and refer to official hazard maps from geological surveys."
+        )
+        content.append(Paragraph(disclaimer_text, styles['SmallText']))
+        
+        # Build the PDF document
+        doc.build(content)
+        
+        return file_path
     
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add risk assessment
-    content.append(Paragraph("Risk Assessment", heading_style))
-    
-    # Determine risk level based on magnitude and proximity
-    risk_level = "Low"
-    risk_color = colors.green
-    
-    # Check for significant earthquakes nearby
-    significant_quakes = [q for q in nearby_quakes if q.get("properties", {}).get("mag", 0) >= 5.0]
-    close_quakes = [q for q in nearby_quakes if q.get("properties", {}).get("distance", float('inf')) <= 100]
-    
-    if any(q for q in nearby_quakes if q.get("properties", {}).get("mag", 0) >= 7.0):
-        risk_level = "High"
-        risk_color = colors.red
-    elif significant_quakes and close_quakes:
-        risk_level = "Moderate"
-        risk_color = colors.orange
-    
-    risk_style = ParagraphStyle(
-        name='RiskText',
-        parent=styles['Normal'],
-        textColor=risk_color,
-        fontName='Helvetica-Bold'
-    )
-    
-    content.append(Paragraph(f"Based on historical earthquake data, this location has a {risk_level.upper()} seismic risk.", risk_style))
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add recommendations based on risk level
-    content.append(Paragraph("Recommendations:", heading2_style))
-    
-    if risk_level == "High":
-        recommendations = [
-            "Consider professional assessment of building safety and potential retrofitting needs.",
-            "Develop a detailed family emergency and communication plan.",
-            "Prepare a comprehensive emergency kit for at least 72 hours of self-sufficiency.",
-            "Consider earthquake insurance coverage.",
-            "Stay informed about local seismic hazards and preparedness measures."
-        ]
-    elif risk_level == "Moderate":
-        recommendations = [
-            "Review and practice earthquake safety procedures with all household members.",
-            "Check home for potential hazards and consider basic retrofitting if needed.",
-            "Prepare a more comprehensive emergency kit.",
-            "Stay informed about local seismic hazards and preparedness measures."
-        ]
-    else:  # Low
-        recommendations = [
-            "Implement basic earthquake preparedness despite low hazard.",
-            "Consider a basic emergency kit with water, food, and first aid supplies.",
-            "Stay informed about local seismic hazards and preparedness measures."
-        ]
-    
-    for rec in recommendations:
-        content.append(Paragraph(f"• {rec}", normal_style))
-        content.append(Spacer(1, 0.1*inch))
-    
-    content.append(Spacer(1, 0.25*inch))
-    
-    # Add disclaimer
-    content.append(Paragraph("Disclaimer", heading2_style))
-    disclaimer_text = (
-        "This report provides an assessment based on historical earthquake data. While it provides valuable insights, "
-        "it should not be the sole basis for critical infrastructure or life-safety decisions. For such applications, "
-        "please consult with qualified seismic hazard experts and refer to official hazard maps from geological surveys."
-    )
-    content.append(Paragraph(disclaimer_text, styles['SmallText']))
-    
-    # Build the PDF document
-    doc.build(content)
-    
-    return file_path
-
+    except Exception as e:
+        print(f"Error generating report: {str(e)}")
+        raise ValueError(f"Failed to generate report: {str(e)}")
 def generate_enhanced_report(earthquakes, traditional_analysis, openquake_analysis, title, center_lat, center_lon, radius_km):
     """
     Generate an enhanced PDF report for earthquake hazard analysis incorporating OpenQuake results.
