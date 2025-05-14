@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Global Weather Monitor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #121212;
+      --card-dark: #1e1e1e;
+      --text-light: #e0e0e0;
+      --accent: #4fc3f7;
+      --warning: #ff7043;
+      --danger: #f44336;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-light);
+      margin: 0;
+      padding: 20px;
+    }
+    #map {
+      height: 500px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #333;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    button:hover {
+      background-color: #444;
+    }
+    /* Weather card grid */
+    #weatherCards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+    .weather-card {
+      background: var(--card-dark);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      padding: 18px 20px 16px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 140px;
+      position: relative;
+      border: 1px solid #333;
+    }
+    .weather-card .city {
+      font-size: 1.1em;
+      font-weight: 600;
+      margin-bottom: 2px;
+      text-align: center;
+    }
+    .weather-card .country {
+      font-size: 0.95em;
+      color: #aaa;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .weather-card .temp {
+      font-size: 2.1em;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .weather-card .weather {
+      font-size: 1.2em;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .weather-card .wind {
+      font-size: 0.95em;
+      color: #7ec6e6;
+      margin-bottom: 2px;
+    }
+    .weather-card .time {
+      font-size: 0.85em;
+      color: #888;
+      margin-top: 2px;
+    }
+    .loading, .error {
+      text-align: center;
+      padding: 20px;
+      font-size: 1.1em;
+    }
+    .error {
+      color: var(--danger);
+    }
+  </style>
+</head>
+<body>
+  <h1>🌤️ Global Weather Monitor</h1>
+  <div id="map"></div>
+  <div class="controls">
+    <button id="refreshBtn">
+      <i class="material-icons">refresh</i>
+      Refresh Data
+    </button>
+    <button id="exportBtn">
+      <i class="material-icons">download</i>
+      Export
+    </button>
+  </div>
+  <div id="weatherCards">
+    <div class="loading">Loading data...</div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="map.js"></script>
+</body>
+</html> 
