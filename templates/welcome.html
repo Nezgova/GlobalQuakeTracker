@@ -3,228 +3,348 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natural Disaster Monitoring System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <title>Disaster Monitoring Dashboard</title>
     <style>
-        body {
-            background-color: #f8f9fa;
+        :root {
+            --primary-color: #3a86ff;
+            --secondary-color: #ff006e;
+            --dark-color: #212529;
+            --light-color: #f8f9fa;
+            --success-color: #4CAF50;
+            --warning-color: #FFC107;
+            --danger-color: #DC3545;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .welcome-container {
+        
+        body {
+            background-color: #f0f2f5;
+            color: var(--dark-color);
+        }
+        
+        .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 0 1rem;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 3rem;
-            color: #2c3e50;
+        
+        header {
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-        .monitor-card {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-        .monitor-card:hover {
-            transform: translateY(-5px);
-        }
-        .btn-monitor {
-            width: 100%;
-            padding: 1rem;
-            font-size: 1.1rem;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-        }
-        .btn-weather {
-            background-color: #3498db;
-            color: white;
-        }
-        .btn-fire {
-            background-color: #e74c3c;
-            color: white;
-        }
-        .btn-earthquake {
-            background-color: #2ecc71;
-            color: white;
-        }
-        .btn-monitor:hover {
-            transform: scale(1.02);
-            color: white;
-        }
-
-        /* Chat Bubble Styles */
-        .chat-bubble {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            background-color: #3498db;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-            z-index: 1000;
-        }
-
-        .chat-bubble:hover {
-            transform: scale(1.1);
-        }
-
-        .chat-bubble i {
-            color: white;
-            font-size: 24px;
-        }
-
-        .chat-container {
-            position: fixed;
-            bottom: 90px;
-            right: 20px;
-            width: 350px;
-            height: 500px;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            display: none;
-            flex-direction: column;
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
-
-        .chat-container.active {
-            display: flex;
-        }
-
-        .chat-header {
-            background: #3498db;
-            color: white;
-            padding: 15px;
-            border-radius: 15px 15px 0 0;
+        
+        .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-
-        .chat-header h2 {
-            margin: 0;
-            font-size: 1.2em;
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
         }
-
-        .close-chat {
-            background: none;
-            border: none;
-            color: white;
+        
+        main {
+            padding: 3rem 0;
+        }
+        
+        .page-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .page-title h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+        
+        .page-title p {
+            font-size: 1.1rem;
+            color: #6c757d;
+        }
+        
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .card {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
             cursor: pointer;
-            font-size: 1.2em;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            height: 100%;
         }
-
-        .chat-messages {
-            flex-grow: 1;
-            padding: 15px;
-            overflow-y: auto;
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
         }
-
-        .chat-input {
-            padding: 15px;
-            border-top: 1px solid #eee;
+        
+        .card-image {
+            height: 180px;
+            width: 100%;
+            background-size: cover;
+            background-position: center;
+        }
+        
+        .card-earthquake {
+            background-image: url("/api/placeholder/400/320");
+            background-color: #dc3545;
+        }
+        
+        .card-fires {
+            background-image: url("/api/placeholder/400/320");
+            background-color: #fd7e14;
+        }
+        
+        .card-weather {
+            background-image: url("/api/placeholder/400/320");
+            background-color: #0dcaf0;
+        }
+        
+        .card-content {
+            padding: 1.5rem;
+        }
+        
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .card p {
+            color: #6c757d;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+        
+        .card-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .badge-earthquake {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+        
+        .badge-fires {
+            background-color: rgba(253, 126, 20, 0.1);
+            color: #fd7e14;
+        }
+        
+        .badge-weather {
+            background-color: rgba(13, 202, 240, 0.1);
+            color: #0dcaf0;
+        }
+        
+        .chatbot-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
             display: flex;
-            gap: 10px;
-        }
-
-        .chat-input input {
-            flex-grow: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            outline: none;
-        }
-
-        .chat-input button {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 20px;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+            z-index: 999;
+            border: none;
         }
-
-        .chat-input button:hover {
-            background: #2980b9;
+        
+        .chatbot-btn:hover {
+            transform: scale(1.1);
+            background-color: #2563eb;
+        }
+        
+        .chatbot-icon {
+            width: 28px;
+            height: 28px;
+            fill: white;
+        }
+        
+        .tooltip {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background-color: #333;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .chatbot-btn:hover .tooltip {
+            opacity: 1;
+        }
+        
+        footer {
+            background-color: #fff;
+            padding: 2rem 0;
+            border-top: 1px solid #e9ecef;
+            margin-top: 2rem;
+        }
+        
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-content p {
+            color: #6c757d;
+        }
+        
+        @media (max-width: 768px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 1rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="welcome-container">
-        <div class="header">
-            <h1>Natural Disaster Monitoring System</h1>
-            <p class="lead">Track and monitor natural disasters in real-time</p>
-        </div>
-
-        <div class="row">
-            <div class="col-md-4">
-                <div class="monitor-card">
-                    <h4>Weather Monitor</h4>
-                    <p>Track real-time weather conditions and forecasts</p>
-                    <a href="http://localhost:5001" class="btn btn-monitor btn-weather">Open Weather Monitor</a>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="monitor-card">
-                    <h4>Fire Monitor</h4>
-                    <p>Monitor fire incidents and alerts</p>
-                    <a href="http://localhost:5002" class="btn btn-monitor btn-fire">Open Fire Monitor</a>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="monitor-card">
-                    <h4>Earthquake Monitor</h4>
-                    <p>Track seismic activities and earthquake alerts</p>
-                    <a href="http://localhost:5003" class="btn btn-monitor btn-earthquake">Open Earthquake Monitor</a>
-                </div>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">DisasterMonitor</div>
             </div>
         </div>
-    </div>
-
-    <!-- Chat Bubble and Container -->
-    <div class="chat-bubble" id="chat-bubble">
-        <i class="fas fa-comments"></i>
-    </div>
-
-    <div class="chat-container" id="chat-container">
-        <div class="chat-header">
-            <h2>Assistant d'Urgence</h2>
-            <button class="close-chat" id="close-chat">
-                <i class="fas fa-times"></i>
-            </button>
+    </header>
+    
+    <main>
+        <div class="container">
+            <div class="page-title">
+                <h1>Disaster Monitoring Dashboard</h1>
+                <p>Access real-time data on natural disasters and weather conditions</p>
+            </div>
+            
+            <div class="cards-container">
+                <!-- Earthquake Card -->
+                <a href="http://127.0.0.1:8000" class="card" id="earthquake-card">
+                    <div class="card-image card-earthquake"></div>
+                    <div class="card-content">
+                        <span class="card-badge badge-earthquake">MONITORING</span>
+                        <h3>Earthquake</h3>
+                        <p>Track real-time seismic activity and earthquake alerts around the globe.</p>
+                    </div>
+                </a>
+                
+                <!-- Fires Card -->
+                <a href="http://127.0.0.1:5004" class="card" id="fires-card">
+                    <div class="card-image card-fires"></div>
+                    <div class="card-content">
+                        <span class="card-badge badge-fires">MONITORING</span>
+                        <h3>Fires</h3>
+                        <p>Monitor active wildfires, fire hazard levels, and evacuation zones.</p>
+                    </div>
+                </a>
+                
+                <!-- Weather Card -->
+                <a href="http://127.0.0.1:5001" class="card" id="weather-card">
+                    <div class="card-image card-weather"></div>
+                    <div class="card-content">
+                        <span class="card-badge badge-weather">MONITORING</span>
+                        <h3>Weather</h3>
+                        <p>Access detailed weather forecasts, severe weather warnings, and climate data.</p>
+                    </div>
+                </a>
+            </div>
         </div>
-        
-        <div class="chat-messages" id="chat-messages">
-            <!-- Messages will appear here -->
+    </main>
+    
+    <!-- Chatbot Button -->
+    <a href="http://127.0.0.1:5005" class="chatbot-btn" id="chatbot-btn">
+        <svg class="chatbot-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12 1c-6.627 0-12 4.208-12 9.399 0 3.356 2.246 6.301 5.625 7.963-0.344 0.813-1.406 2.738-2.625 4.638 3.375-0.938 5.719-2.463 6.594-3 0.75 0.094 1.5 0.15 2.406 0.15 6.627 0 12-4.208 12-9.399s-5.373-9.75-12-9.75zM7.5 11.25c-0.828 0-1.5-0.672-1.5-1.5s0.672-1.5 1.5-1.5 1.5 0.672 1.5 1.5-0.672 1.5-1.5 1.5zM12 11.25c-0.828 0-1.5-0.672-1.5-1.5s0.672-1.5 1.5-1.5 1.5 0.672 1.5 1.5-0.672 1.5-1.5 1.5zM16.5 11.25c-0.828 0-1.5-0.672-1.5-1.5s0.672-1.5 1.5-1.5 1.5 0.672 1.5 1.5-0.672 1.5-1.5 1.5z"></path>
+        </svg>
+        <span class="tooltip">Open Chatbot</span>
+    </a>
+    
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <p>&copy; 2025 DisasterMonitor. All rights reserved.</p>
+                <p>Real-time disaster monitoring and response</p>
+            </div>
         </div>
-        
-        <div class="chat-input">
-            <input type="text" id="user-input" placeholder="Posez votre question...">
-            <button id="send-btn"><i class="fas fa-paper-plane"></i></button>
-        </div>
-    </div>
+    </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('chat-bubble').addEventListener('click', function() {
-            document.getElementById('chat-container').classList.add('active');
-        });
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click events for cards with analytics tracking
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                card.addEventListener('click', function(e) {
+                    const cardName = this.querySelector('h3').textContent;
+                    console.log(`Navigating to ${cardName} dashboard`);
+                    // Here you could add analytics tracking code
+                });
+            });
 
-        document.getElementById('close-chat').addEventListener('click', function() {
-            document.getElementById('chat-container').classList.remove('active');
+            // Chatbot button animation
+            const chatbotBtn = document.getElementById('chatbot-btn');
+            chatbotBtn.addEventListener('click', function(e) {
+                console.log('Opening chatbot interface');
+            });
+            
+            // Add some subtle animation for the cards
+            function animateCards() {
+                const cards = document.querySelectorAll('.card');
+                cards.forEach((card, index) => {
+                    setTimeout(() => {
+                        card.style.opacity = '0';
+                        card.style.transform = 'translateY(20px)';
+                        
+                        // Trigger reflow
+                        void card.offsetWidth;
+                        
+                        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    }, index * 150);
+                });
+            }
+            
+            // Call animation on page load
+            animateCards();
         });
     </script>
 </body>
-</html> 
+</html>

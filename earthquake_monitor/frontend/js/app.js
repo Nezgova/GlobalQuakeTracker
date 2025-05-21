@@ -1,6 +1,6 @@
 
 // Base URL for API requests - change this if your server is running on a different port/host
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5000/api'
 
 // Add a global error handler for API requests
 window.addEventListener('unhandledrejection', function(event) {

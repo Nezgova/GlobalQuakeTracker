@@ -34,7 +34,7 @@ class DisasterChatbot:
             )
 
             self.model = genai.GenerativeModel(
-                model_name="gemini-pro",
+                model_name="gemini-1.5-pro",
                 generation_config=GEMINI_CONFIG["generation_config"],
                 safety_settings=GEMINI_CONFIG["safety_settings"]
             )

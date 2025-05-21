@@ -1,30 +1,15 @@
-from flask import Flask, render_template
-import threading
 import subprocess
-import sys
 import os
 
+def run_in_new_terminal_windows(path, command):
+    abs_path = os.path.abspath(path)
+    # Create the command to open a new cmd window, cd to the folder, and run the python command, keeping the window open
+    cmd = f'start cmd /k "cd /d {abs_path} && {" ".join(command)}"'
+    subprocess.Popen(cmd, shell=True)
 
-app = Flask(__name__)
-
-@app.route('/')
-def welcome():
-    return render_template('welcome.html')
-
-# Function to run a backend server
-def run_backend(script_path, port):
-    subprocess.run([sys.executable, script_path], env=dict(os.environ, FLASK_RUN_PORT=str(port)))
-
-# Start backend servers in separate threads
-weather_thread = threading.Thread(target=run_backend, args=('weather_monitor/backend/appweather.py', 5001))
-fire_thread = threading.Thread(target=run_backend, args=('FiresProjectNouamane/server.py', 5002))
-earthquake_thread = threading.Thread(target=run_backend, args=('earthquake_monitor/backend/app.py', 5003))
-chatbot_thread = threading.Thread(target=run_backend, args=('chatgptVersionFinal/app.py', 5004))
-
-weather_thread.start()
-fire_thread.start()
-earthquake_thread.start()
-chatbot_thread.start()
-
-if __name__ == '__main__':
-    app.run(port=5000, debug=False) 
+# Run all your commands in separate terminals:
+run_in_new_terminal_windows("earthquake_monitor/backend", ["python", "app.py"])
+run_in_new_terminal_windows("earthquake_monitor/frontend", ["python", "-m", "http.server", "8000"])
+run_in_new_terminal_windows("chatgptVersionFinal", ["python", "app.py"])
+run_in_new_terminal_windows("weather_monitor/backend", ["python", "appweather.py"])
+run_in_new_terminal_windows("FiresProjectNouamane", ["python", "server.py"])

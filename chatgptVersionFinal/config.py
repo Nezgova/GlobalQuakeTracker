@@ -17,6 +17,6 @@ GEMINI_CONFIG = {
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
         # ... autres paramètres
     ],
-    "model_name": "gemini-pro",
+    "model_name": "gemini-1.5-pro",
     "api_version": "v1"  # Ajout explicite
 }
