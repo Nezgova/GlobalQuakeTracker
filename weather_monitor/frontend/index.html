@@ -6,25 +6,31 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #121212;
-      --card-dark: #1e1e1e;
-      --text-light: #e0e0e0;
-      --accent: #4fc3f7;
-      --warning: #ff7043;
-      --danger: #f44336;
+      --primary-color: #3498db;
+      --secondary-color: #2c3e50;
+      --accent-color: #e74c3c;
+      --light-color: #ecf0f1;
+      --dark-color: #34495e;
+      --background-color: #f8f9fa;
+      --text-color: #2c3e50;
     }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--bg-dark);
-      color: var(--text-light);
+      background-color: var(--background-color);
+      color: var(--text-color);
       margin: 0;
       padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: var(--secondary-color);
+      margin-bottom: 2rem;
     }
     #map {
       height: 500px;
       margin: 20px 0;
-      border-radius: 8px;
-      border: 1px solid #444;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     .controls {
       display: flex;
@@ -32,18 +38,19 @@
       margin-bottom: 20px;
     }
     button {
-      background-color: #333;
+      background-color: var(--primary-color);
       color: white;
       border: none;
       padding: 10px 16px;
-      border-radius: 4px;
+      border-radius: 10px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 8px;
+      transition: transform 0.3s ease;
     }
     button:hover {
-      background-color: #444;
+      transform: scale(1.02);
     }
     /* Weather card grid */
     #weatherCards {
@@ -53,26 +60,30 @@
       margin-top: 24px;
     }
     .weather-card {
-      background: var(--card-dark);
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       padding: 18px 20px 16px 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 140px;
       position: relative;
-      border: 1px solid #333;
+      transition: transform 0.3s ease;
+    }
+    .weather-card:hover {
+      transform: translateY(-5px);
     }
     .weather-card .city {
       font-size: 1.1em;
       font-weight: 600;
       margin-bottom: 2px;
       text-align: center;
+      color: var(--secondary-color);
     }
     .weather-card .country {
       font-size: 0.95em;
-      color: #aaa;
+      color: #666;
       margin-bottom: 8px;
       text-align: center;
     }
@@ -80,6 +91,7 @@
       font-size: 2.1em;
       font-weight: bold;
       margin-bottom: 4px;
+      color: var(--primary-color);
     }
     .weather-card .weather {
       font-size: 1.2em;
@@ -87,15 +99,23 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      color: var(--secondary-color);
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 5px 10px;
+      border-radius: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     .weather-card .wind {
       font-size: 0.95em;
-      color: #7ec6e6;
+      color: var(--primary-color);
       margin-bottom: 2px;
     }
     .weather-card .time {
       font-size: 0.85em;
-      color: #888;
+      color: #666;
       margin-top: 2px;
     }
     .loading, .error {
@@ -104,12 +124,15 @@
       font-size: 1.1em;
     }
     .error {
-      color: var(--danger);
+      color: var(--accent-color);
     }
-  </style>
+  </style> 
 </head>
 <body>
-  <h1>🌤️ Global Weather Monitor</h1>
+  <nav style="width:100%;background:#3498db;padding:10px 0 10px 20px;box-shadow:0 2px 6px rgba(0,0,0,0.07);margin-bottom:20px;">
+    <a href="http://localhost:5000/" style="color:white;font-weight:600;text-decoration:none;font-size:1.1em;">&larr; Back to Main Page</a>
+  </nav>
+  <h1>Global Weather Monitor</h1>
   <div id="map"></div>
   <div class="controls">
     <button id="refreshBtn">
